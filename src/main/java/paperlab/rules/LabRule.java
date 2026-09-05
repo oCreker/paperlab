@@ -38,6 +38,8 @@ public final class LabRule<T> {
     private final Function<T, @Nullable String> validator;
 
     private volatile T value;
+    /** Метки для {@code /carpet list <метка>} — как категории правил в Carpet. */
+    private List<String> categories = List.of();
 
     LabRule(final String name,
             final String description,
@@ -62,6 +64,16 @@ public final class LabRule<T> {
 
     public String name() {
         return this.name;
+    }
+
+    public List<String> categories() {
+        return this.categories;
+    }
+
+    /** Задаётся один раз при регистрации, поэтому без синхронизации. */
+    LabRule<T> categories(final String... tags) {
+        this.categories = List.of(tags);
+        return this;
     }
 
     public String description() {

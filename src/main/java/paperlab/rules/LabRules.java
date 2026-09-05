@@ -78,7 +78,7 @@ public final class LabRules {
         STRING,
         PLAIN::apply,
         value -> value.length() > 8 ? "a suffix longer than 8 chars leaves no room for the name" : null,
-        value -> LabRuleState.fakePlayerNameSuffix = value));
+        value -> LabRuleState.fakePlayerNameSuffix = value), "bot", "creative");
 
     /**
      * Обновления соседей от {@code /fill}, {@code /setblock} и {@code /clone}.
@@ -96,7 +96,7 @@ public final class LabRules {
         BOOLEAN,
         PLAIN::apply,
         value -> null,
-        value -> LabRuleState.fillUpdates = value));
+        value -> LabRuleState.fillUpdates = value), "creative", "command");
 
     /** Действуют ли наши дополнения к ванильному {@code /tick}. Имя как в Carpet. */
     public static final LabRule<Boolean> TICK_COMMAND_CARPETFIED = register(new LabRule<>(
@@ -108,7 +108,7 @@ public final class LabRules {
         BOOLEAN,
         PLAIN::apply,
         value -> null,
-        value -> LabRuleState.tickCommandCarpetfied = value));
+        value -> LabRuleState.tickCommandCarpetfied = value), "command", "experimental");
 
     /**
      * Фиксированный горизонтальный угол разлёта у зажжённого динамита.
@@ -130,7 +130,7 @@ public final class LabRules {
         value -> {
             // Применяется слушателем при появлении сущности: конструктор уже отработал,
             // но до первого тика скорость ещё никто не читал.
-        }));
+        }), "tnt", "creative");
 
     /**
      * Включение сбора и вывода микротаймингов редстоуна (/log microtiming).
@@ -151,7 +151,7 @@ public final class LabRules {
             if (CoreBridge.PRESENT) {
                 io.papermc.paper.lab.microtiming.LabMicroTiming.enabled = value;
             }
-        }));
+        }), "redstone", "experimental");
 
     /**
      * Независимый тикрейт, заморозка и спринт по мирам (/tick freeze, rate и т.д.).
@@ -175,14 +175,46 @@ public final class LabRules {
                     (bServer instanceof final org.bukkit.craftbukkit.CraftServer cs) ? cs.getServer() : null;
                 io.papermc.paper.lab.tick.LabPerWorldTick.setEnabled(value, server);
             }
-        }));
+        }), "tick", "experimental");
 
     private LabRules() {
     }
 
-    private static <T> LabRule<T> register(final LabRule<T> rule) {
-        RULES.put(rule.name().toLowerCase(Locale.ROOT), rule);
+    private static <T> LabRule<T> register(final LabRule<T> rule, final String... categories) {
+        RULES.put(rule.name().toLowerCase(Locale.ROOT), rule.categories(categories));
         return rule;
+    }
+
+    /** Все встречающиеся метки, по алфавиту. */
+    public static List<String> categories() {
+        final java.util.TreeSet<String> out = new java.util.TreeSet<>();
+        RULES.values().forEach(rule -> out.addAll(rule.categories()));
+        return List.copyOf(out);
+    }
+
+    /** Правила с этой меткой. */
+    public static Collection<LabRule<?>> inCategory(final String category) {
+        final List<LabRule<?>> out = new java.util.ArrayList<>();
+        for (final LabRule<?> rule : all()) {
+            for (final String tag : rule.categories()) {
+                if (tag.equalsIgnoreCase(category)) {
+                    out.add(rule);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Правила, отличающиеся от ванильных. */
+    public static Collection<LabRule<?>> changed() {
+        final List<LabRule<?>> out = new java.util.ArrayList<>();
+        for (final LabRule<?> rule : all()) {
+            if (rule.changed()) {
+                out.add(rule);
+            }
+        }
+        return out;
     }
 
     public static @Nullable LabRule<?> get(final String name) {

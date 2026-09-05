@@ -112,10 +112,22 @@ public final class LabMiscCommands {
                 NamedTextColor.DARK_GRAY));
             return 0;
         }
-        source.getSender().sendMessage(LabCounters.summary(counter, world.getGameTime(), false));
+        // Раскладка Carpet: заголовок с итогом и скоростью, кнопка сброса, затем предметы.
+        final long ticks = Math.max(counter.elapsedTicks(world.getGameTime()), 1L);
+        final Double perHour = counter.perHour(world.getGameTime());
+        source.getSender().sendMessage(paperlab.text.Msg.c(
+            "w Items for ", LabCounters.hexStyle(colour) + " " + colour.getName(),
+            String.format(java.util.Locale.ROOT, "w  (%.2f min), ", ticks / 1200.0D),
+            "w total: ", "wb " + counter.total(),
+            "w , (", "wb " + (perHour == null ? "-"
+                : String.format(java.util.Locale.ROOT, "%.1f", perHour)), "w /h):",
+            "nb  [X]", "^g reset", "!/counter " + colour.getName() + " reset"));
         for (final LabCounter.Entry entry : counter.entries()) {
-            source.getSender().sendMessage(Component.text("  " + entry.count() + "  ",
-                NamedTextColor.WHITE).append(entry.name().color(NamedTextColor.GRAY)));
+            source.getSender().sendMessage(paperlab.text.Msg.c(
+                "g - ", entry.name().color(NamedTextColor.GRAY),
+                "g : ", "wb " + entry.count(), "g , ",
+                String.format(java.util.Locale.ROOT, "wb %.1f",
+                    entry.count() * (20.0D * 60.0D * 60.0D) / ticks), "w /h"));
         }
         return 1;
     }

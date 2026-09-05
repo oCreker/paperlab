@@ -6,6 +6,7 @@ import paperlab.counter.WoolColors;
 import paperlab.ghost.LabGhost;
 import paperlab.mobcap.MobcapService;
 import paperlab.spawn.SpawnView;
+import paperlab.text.Msg;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -90,14 +91,31 @@ public final class LabHud {
         return lines;
     }
 
+    /**
+     * Строка TPS — считается и выглядит ровно как в Carpet.
+     *
+     * <p>Раньше здесь стоял {@code Bukkit.getTPS()[0]}, и это <b>другое число</b>:
+     * у Bukkit это скользящее среднее за минуту, оно инертно и на коротком лаге почти
+     * не шевелится. Carpet показывает мгновенное {@code 1000 / max(целевой mspt,
+     * реальный mspt)} — то есть с какой скоростью сервер идёт прямо сейчас. Расхождение
+     * бросалось в глаза всем, кто пришёл с мода, и мешало сравнивать замеры.
+     *
+     * <p>Отсюда же учёт {@code /tick}: при заморозке TPS ноль, при спринте снят потолок.
+     */
     private static Component tpsLine() {
-        final double tps = Bukkit.getTPS()[0];
-        final double mspt = Bukkit.getAverageTickTime();
-        final NamedTextColor colour = heat(mspt, 50.0D);
-        return Component.text("TPS ", NamedTextColor.GRAY)
-            .append(Component.text(String.format(Locale.ROOT, "%.1f", Math.min(tps, 20.0D)), colour))
-            .append(Component.text("  MSPT ", NamedTextColor.GRAY))
-            .append(Component.text(String.format(Locale.ROOT, "%.1f", mspt), colour));
+        final net.minecraft.server.MinecraftServer server =
+            ((org.bukkit.craftbukkit.CraftServer) Bukkit.getServer()).getServer();
+        final double mspt = server.getAverageTickTimeNanos() / 1_000_000.0D;
+        final net.minecraft.server.ServerTickRateManager ticks = server.tickRateManager();
+
+        double tps = 1000.0D / Math.max(ticks.isSprinting() ? 0.0D : ticks.millisecondsPerTick(), mspt);
+        if (ticks.isFrozen()) {
+            tps = 0.0D;
+        }
+        final String colour = Msg.heatmap(mspt, ticks.millisecondsPerTick());
+        return Msg.c(
+            "g TPS: ", String.format(Locale.US, "%s %.1f", colour, tps),
+            "g  MSPT: ", String.format(Locale.US, "%s %.1f", colour, mspt));
     }
 
     /**
@@ -128,18 +146,23 @@ public final class LabHud {
         final boolean local = MobcapService.perPlayerEnabled(level);
         final MobcapService.MonsterCap cap = MobcapService.monsterCap(handle, level, local);
 
-        TextComponent head = Component.text(target.getName() + "  ", NamedTextColor.GRAY)
-            .append(Component.text(cap.counted(), heat(cap.effective(), cap.limit())))
-            .append(Component.text("/" + cap.limit(), NamedTextColor.DARK_GRAY));
+        // Грамматика Carpet: «текущее / предел», текущее по тепловой шкале, предел —
+        // цветом категории. Содержимое при этом наше: у Carpet кап мировой, у нас
+        // персональный, и в этом весь смысл стенда.
+        Component head = Msg.c(
+            "w " + target.getName() + "  ",
+            Msg.heatmap(cap.effective(), cap.limit()) + " " + cap.counted(),
+            "g  / ",
+            Msg.creatureTypeColour("monster") + " " + cap.limit());
         if (!local) {
-            head = head.append(Component.text("  global", NamedTextColor.DARK_GRAY));
+            head = head.append(Msg.c("gi  global"));
         }
         if (LabGhost.isGhost(target)) {
             // На нашем ядре наблюдатель действительно вне переписи — число ниже честное.
             // На чистом Paper он в перепись попадает, и это надо видеть в строке.
             head = LabGhost.full()
-                ? head.append(Component.text("  ghost", NamedTextColor.AQUA))
-                : head.append(Component.text("  ghost(partial)", NamedTextColor.RED));
+                ? head.append(Msg.c("c  ghost"))
+                : head.append(Msg.c("r  ghost(partial)"));
         }
         if (!full) {
             return List.of(head);
@@ -148,7 +171,7 @@ public final class LabHud {
         // Строка full короткая намеренно: она висит в табе постоянно, рядом с другими
         // подписками, и каждое лишнее слово вытесняет полезное. «+12 backoff → 17/5»
         // читается не хуже фразы, а места занимает втрое меньше.
-        TextComponent extra = Component.text("  +", NamedTextColor.DARK_GRAY)
+        Component extra = Component.text("  +", NamedTextColor.DARK_GRAY)
             .append(Component.text(cap.backoff(),
                 cap.backoff() > 0 ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY))
             .append(Component.text(" backoff", NamedTextColor.DARK_GRAY));

@@ -62,13 +62,14 @@ public final class LabCommands {
     }
 
     public static void register(final JavaPlugin plugin) {
+        final String version = plugin.getPluginMeta().getVersion();
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             final var registrar = event.registrar();
 
             // /carpet — только наши инструменты и, позже, правила с одним значением.
             // Команд Carpet здесь нет намеренно: они живут отдельно, как в самом моде.
             final var carpet = Commands.literal("carpet")
-                .executes(ctx -> overview(ctx.getSource()))
+                .executes(ctx -> overview(ctx.getSource(), version))
                 .then(LabMiscCommands.ghostNode("ghost"))
                 .then(LabMiscCommands.spawnNode("spawn"))
                 .then(LabMiscCommands.chunksNode("chunks"))
@@ -134,7 +135,7 @@ public final class LabCommands {
     }
 
     /** Короткий список: что вообще есть в этом ядре. Строки кликабельны. */
-    private static int overview(final CommandSourceStack source) {
+    private static int overview(final CommandSourceStack source, final String version) {
         final var sender = source.getSender();
         sender.sendMessage(Component.text("Technical Lab", NamedTextColor.AQUA)
             .append(Component.text("  " + CoreBridge.describe(), NamedTextColor.DARK_GRAY)));
@@ -143,21 +144,6 @@ public final class LabCommands {
             sender.sendMessage(Component.text("  /carpet " + entry.name(), NamedTextColor.WHITE)
                 .clickEvent(ClickEvent.suggestCommand("/carpet " + entry.name() + " "))
                 .append(Component.text("  " + entry.help(), NamedTextColor.GRAY)));
-        }
-
-        // Правила: показываем только изменённые. Полный список — /carpet list.
-        // Смысл в том, чтобы отклонение от ванильного было видно сразу и без запроса:
-        // именно забытое правило и портит замеры.
-        final int changed = paperlab.rules.LabRules.changedCount();
-        sender.sendMessage(Component.text("  /carpet list", NamedTextColor.WHITE)
-            .clickEvent(ClickEvent.suggestCommand("/carpet list"))
-            .append(Component.text("  rules"
-                + (changed == 0 ? " - all vanilla" : ", changed: " + changed),
-                changed == 0 ? NamedTextColor.GRAY : NamedTextColor.GOLD)));
-        for (final paperlab.rules.LabRule<?> rule : paperlab.rules.LabRules.all()) {
-            if (rule.changed()) {
-                sender.sendMessage(RuleCommands.line(rule, sender));
-            }
         }
 
         // Отдельные команды показываем здесь же: иначе о них никак не узнать,
@@ -169,6 +155,11 @@ public final class LabCommands {
                 .clickEvent(ClickEvent.suggestCommand(entry.name() + " "))
                 .append(Component.text("  " + entry.help(), NamedTextColor.GRAY)));
         }
+
+        // Дальше — ровно то, что печатает /carpet в моде: изменённые правила, версия
+        // и метки. Отклонение от ванильного должно быть видно сразу и без запроса:
+        // именно забытое правило и портит замеры.
+        RuleCommands.listChanged(sender, version);
 
         return INDEX.size();
     }

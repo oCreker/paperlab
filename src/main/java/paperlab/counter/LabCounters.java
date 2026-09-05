@@ -11,6 +11,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minecraft.world.item.DyeColor;
+import paperlab.text.Msg;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -186,20 +187,46 @@ public final class LabCounters {
     }
 
     /** Одна строка: цвет, всего, рейт, время. */
-    public static TextComponent summary(final LabCounter counter, final long gameTime,
-                                        final boolean withWorld) {
+    /**
+     * Краткая строка счётчика — грамматика Carpet: {@code name: total, N/h, M.M min}.
+     *
+     * <p>Имя красится настоящим цветом красителя (как в моде), а не приблизительным
+     * именованным: {@code light_blue} и {@code cyan} в шестнадцати именованных цветах
+     * Minecraft сливаются, а в таб-листе рядом висят несколько счётчиков и различать
+     * их надо взглядом.
+     */
+    public static Component summary(final LabCounter counter, final long gameTime,
+                                    final boolean withWorld) {
         final Double perHour = counter.perHour(gameTime);
-        final double minutes = counter.elapsedTicks(gameTime) / 1200.0D;
-        TextComponent line = Component.text(counter.colour().getName(), chatColour(counter.colour()));
-        if (withWorld) {
-            line = line.append(Component.text("@" + counter.world(), NamedTextColor.DARK_GRAY));
+        final long ticks = Math.max(counter.elapsedTicks(gameTime), 1L);
+        final double minutes = ticks / 1200.0D;
+        final String name = hexStyle(counter.colour()) + " " + counter.colour().getName();
+
+        if (!counter.started()) {
+            return Msg.c("b" + name, "w : ", "gi -, -/h, - min ");
         }
-        return line
-            .append(Component.text("  " + counter.total(), NamedTextColor.WHITE))
-            .append(Component.text("  " + (perHour == null
-                ? "N/A"
-                : String.format(Locale.ROOT, "%.0f/h", perHour)), NamedTextColor.AQUA))
-            .append(Component.text(String.format(Locale.ROOT, "  %.1fm", minutes), NamedTextColor.DARK_GRAY));
+        final java.util.List<Object> parts = new java.util.ArrayList<>();
+        parts.add("b" + name);
+        if (withWorld) {
+            parts.add("g @" + counter.world());
+        }
+        parts.add("w : ");
+        parts.add("wb " + counter.total());
+        parts.add("w , ");
+        parts.add("wb " + (perHour == null ? "-" : String.format(Locale.ROOT, "%.0f", perHour)));
+        parts.add("w /h, ");
+        parts.add(String.format(Locale.ROOT, "wb %.1f ", minutes));
+        parts.add("w min");
+        return Msg.c(parts.toArray());
+    }
+
+    /** Цвет красителя в виде стиля {@link Msg} — {@code #rrggbb}, как в Carpet. */
+    public static String hexStyle(final DyeColor dye) {
+        String hex = Integer.toHexString(dye.getTextColor() & 0xFFFFFF);
+        if (hex.length() < 6) {
+            hex = "0".repeat(6 - hex.length()) + hex;
+        }
+        return "#" + hex;
     }
 
     public static NamedTextColor chatColour(final DyeColor dye) {
