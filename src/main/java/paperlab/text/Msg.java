@@ -14,50 +14,50 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 /**
- * Порт мини-языка разметки Carpet (его {@code carpet.utils.Messenger}) на Adventure.
+ * A port of Carpet's markup mini-language ({@code carpet.utils.Messenger}) to Adventure.
  *
- * <p>Нужен он ради одного: чтобы наши сообщения выглядели <b>ровно</b> как карпетовские.
- * Пока каждое сообщение красилось руками, они и получались похожими, но не теми: другой
- * оттенок, другой отступ, кнопки не там. Имея тот же примитив, можно переносить строки
- * из исходников Carpet дословно — и расхождение становится невозможным, а не маловероятным.
+ * <p>It exists for one reason: so our messages look <b>exactly</b> like Carpet's. While every
+ * message was coloured by hand they came out similar but not the same — a different shade, a
+ * different indent, buttons in the wrong place. With the same primitive, lines can be carried
+ * over from Carpet's sources verbatim, and divergence becomes impossible rather than unlikely.
  *
- * <h2>Язык</h2>
- * Каждое поле — строка вида {@code "<стиль> <текст>"}: до первого пробела стиль, дальше
- * текст. Стиль — набор букв, порядок в самой строке неважен, цвет побеждает последний
- * по порядку проверок:
- *
- * <pre>
- * i курсив    s зачёркнутый    u подчёркнутый     b жирный        o шифр
- * w белый     y жёлтый         m сиреневый        r красный       c бирюзовый
- * l зелёный   t синий          f тёмно-серый      g серый         d золотой
- * p фиолет.   n тёмно-красный  q тёмно-бирюзовый  e тёмно-зелёный v тёмно-синий
- * k чёрный    #rrggbb произвольный цвет
- * </pre>
- *
- * <p>Поле, начинающееся со служебного знака, не добавляет текст, а вешает событие на
- * <b>предыдущее</b> поле:
+ * <h2>The language</h2>
+ * Each field is a string of the form {@code "<style> <text>"}: style up to the first space,
+ * text after it. A style is a set of letters; their order inside the field does not matter,
+ * and the last colour in check order wins:
  *
  * <pre>
- * ^ подсказка при наведении    ! выполнить команду    ? подставить команду в строку
- * &#64; открыть ссылку              &amp; скопировать в буфер
+ * i italic    s strikethrough  u underline        b bold          o obfuscated
+ * w white     y yellow         m light purple     r red           c aqua
+ * l green     t blue           f dark gray        g gray          d gold
+ * p dark purple  n dark red    q dark aqua        e dark green    v dark blue
+ * k black     #rrggbb arbitrary colour
  * </pre>
  *
- * <p>Строка, начинающаяся с пробела, считается белой: {@code " - foo"} — то же, что
+ * <p>A field beginning with a control character adds no text; it attaches an event to the
+ * <b>previous</b> field:
+ *
+ * <pre>
+ * ^ hover tooltip              ! run command      ? suggest command
+ * &#64; open URL                    &amp; copy to clipboard
+ * </pre>
+ *
+ * <p>A string starting with a space counts as white: {@code " - foo"} is the same as
  * {@code "w  - foo"}.
  *
- * <p>Отличие от Carpet чисто техническое: там компоненты изменяемые и событие вешается
- * правкой стиля на месте, у Adventure они неизменяемые — поэтому последний кусок держим
- * отдельно и подменяем целиком.
+ * <p>The difference from Carpet is purely technical: there components are mutable and an event
+ * is attached by editing the style in place, whereas Adventure's are immutable — so we keep
+ * the last piece separately and replace it whole.
  *
- * <p>Основано на {@code carpet.utils.Messenger} из Carpet Mod (MIT, (c) gnembon).
- * Условия и полный перечень заимствований — в THIRD-PARTY.md.
+ * <p>Based on {@code carpet.utils.Messenger} from Carpet Mod (MIT, (c) gnembon). Terms and the
+ * full list of borrowings are in THIRD-PARTY.md.
  */
 public final class Msg {
 
     private Msg() {
     }
 
-    /** Собрать одну строку из полей. */
+    /** Assemble one line from the fields. */
     public static Component c(final Object... fields) {
         final List<Component> parts = new ArrayList<>();
         for (final Object field : fields) {
@@ -74,12 +74,12 @@ public final class Msg {
             if (Character.isWhitespace(message.charAt(0))) {
                 message = "w" + message;
             }
-            // Служебное поле правит предыдущий кусок, обычное добавляет новый.
+            // A control field edits the previous piece; an ordinary one appends a new piece.
             //
-            // Carpet отличает одно от другого сравнением ссылок: там компоненты
-            // изменяемые, и модификатор возвращает тот же объект. У Adventure они
-            // неизменяемые — ссылка всегда новая, и такая проверка молча дублирует
-            // каждый кусок, к которому привязано событие. Поэтому смотрим на знак.
+            // Carpet tells them apart by reference identity: its components are mutable and a
+            // modifier returns the same object. Adventure's are immutable — the reference is
+            // always new, and such a check silently duplicates every piece that carries an
+            // event. So we look at the character instead.
             if (!parts.isEmpty() && MODIFIERS.indexOf(message.charAt(0)) >= 0) {
                 parts.set(parts.size() - 1, modify(parts.get(parts.size() - 1), message));
             } else {
@@ -93,21 +93,21 @@ public final class Msg {
         return out;
     }
 
-    /** Собрать и отправить. */
+    /** Assemble and send. */
     public static void m(final Audience target, final Object... fields) {
         if (target != null) {
             target.sendMessage(c(fields));
         }
     }
 
-    /** Простой текст без разметки — как {@code Messenger.s}. */
+    /** Plain text with no markup — like {@code Messenger.s}. */
     public static Component s(final String text) {
         return Component.text(text, NamedTextColor.WHITE);
     }
 
-    // ------------------------------------------------------------------- разбор
+    // ------------------------------------------------------------------- parsing
 
-    /** Знаки, которые вешают событие на предыдущий кусок вместо добавления текста. */
+    /** Characters that attach an event to the previous piece instead of adding text. */
     private static final String MODIFIERS = "?!^@&";
 
     private static Component literal(final String message) {
@@ -130,10 +130,10 @@ public final class Msg {
     }
 
     /**
-     * Разобрать набор букв стиля.
+     * Parse a set of style letters.
      *
-     * <p>Как в Carpet: строка просматривается на каждый код целиком, поэтому порядок букв
-     * в самом поле ничего не решает — решает порядок проверок здесь. Цвет по умолчанию белый.
+     * <p>As in Carpet: the string is scanned for every code in turn, so the letter order inside
+     * the field decides nothing — the check order here does. The default colour is white.
      */
     static Style parseStyle(final String desc) {
         Style.Builder style = Style.style().color(NamedTextColor.WHITE);
@@ -170,7 +170,7 @@ public final class Msg {
     private record Code(char letter, NamedTextColor colour) {
     }
 
-    /** Порядок тот же, что в перечислении Carpet: последнее совпадение побеждает. */
+    /** Same order as Carpet's enum: the last match wins. */
     private static final Code[] COLOURS = {
         new Code('w', NamedTextColor.WHITE),
         new Code('y', NamedTextColor.YELLOW),
@@ -191,10 +191,10 @@ public final class Msg {
     };
 
     /**
-     * Цветовая шкала Carpet: насколько {@code actual} близко к {@code reference}.
+     * Carpet's heat scale: how close {@code actual} is to {@code reference}.
      *
-     * <p>Нужна там, где число само по себе ни о чём не говорит: мобкапы, счётчики.
-     * «Почти упёрлись» и «упёрлись» должны читаться цветом, а не сравнением глазами.
+     * <p>Needed where a number alone says nothing: mobcaps, counters. "Nearly capped" and
+     * "capped" should read as colour rather than as a comparison done by eye.
      */
     public static String heatmap(final double actual, final double reference) {
         String colour = "g";
@@ -213,7 +213,7 @@ public final class Msg {
         return colour;
     }
 
-    /** Цвет категории мобов — тот же, что в Carpet. */
+    /** Mob category colour — the same as in Carpet. */
     public static String creatureTypeColour(final String category) {
         return switch (category.toLowerCase(Locale.ROOT)) {
             case "monster" -> "n";
@@ -225,7 +225,7 @@ public final class Msg {
         };
     }
 
-    /** Ссылка-телепорт на координаты — как {@code Messenger.tp}. */
+    /** A teleport link to coordinates — like {@code Messenger.tp}. */
     public static Component tp(final String style, final int x, final int y, final int z) {
         return Component.text(String.format("[ %d, %d, %d ]", x, y, z))
             .style(parseStyle(style))

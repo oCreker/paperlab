@@ -7,26 +7,27 @@ import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionDefault;
 
 /**
- * Права инструментария — одним списком.
+ * The toolset's permissions, in one list.
  *
- * <p><b>Зачем регистрировать, а не просто проверять.</b> Brigadier-команде достаточно
- * строки в {@code requires}, и работать всё будет и так. Но тогда права нигде не
- * перечислены: LuckPerms не подсказывает их в {@code /lp user ... permission set},
- * веб-редактор не показывает, и узнать полный список можно только из исходников.
- * Зарегистрированные в {@code PluginManager} права LuckPerms подхватывает сам.
+ * <p><b>Why register them rather than just check them.</b> A Brigadier command only needs a
+ * string in {@code requires}, and everything would work. But then the permissions are listed
+ * nowhere: LuckPerms does not suggest them in {@code /lp user ... permission set}, the web
+ * editor does not show them, and the full list can only be found in the sources. Permissions
+ * registered with {@code PluginManager} are picked up by LuckPerms on its own.
  *
- * <p>Дерево двухуровневое: у каждой команды своё право, а подкоманды, которые меняют
- * состояние мира или чужого игрока, вынесены отдельно — чтобы можно было выдать
- * наблюдение без вмешательства.
+ * <p>The tree has two levels: every command has its own node, and subcommands that change the
+ * world or another player are split out — so that observation can be granted without
+ * interference.
  *
- * <p>Все по умолчанию {@link PermissionDefault#OP}: инструментарий не для обычных игроков.
+ * <p>Everything defaults to {@link PermissionDefault#OP}: this toolset is not for ordinary
+ * players.
  */
 public final class LabPermissions {
 
-    /** Корень. Выдача {@code paperlab.*} включает всё дерево. */
+    /** The root. Granting {@code paperlab.*} enables the whole tree. */
     public static final String ROOT = "paperlab.*";
 
-    // --- наблюдение ---
+    // --- observation ---
     public static final String LOG = "paperlab.log";
     public static final String LOG_TPS = "paperlab.log.tps";
     public static final String LOG_MOBCAPS = "paperlab.log.mobcaps";
@@ -40,62 +41,61 @@ public final class LabPermissions {
     public static final String SPAWN = "paperlab.spawn";
     public static final String COUNTER = "paperlab.counter";
 
-    /** Инструменты из Carpet: разбор периметра, сведения о блоке, расстояние. */
+    /** Tools from Carpet: perimeter analysis, block information, distance. */
     public static final String PERIMETER = "paperlab.perimeterinfo";
     public static final String INFO = "paperlab.info";
     public static final String DISTANCE = "paperlab.distance";
 
     /**
-     * Ванильные отладочные подписки 26.2: пути мобов, обновления соседей, порядок
-     * редстоуна, структуры, POI, brain. Их рисует MiniHUD.
+     * Vanilla 26.2 debug subscriptions: mob paths, neighbour updates, redstone order,
+     * structures, POI, brain. MiniHUD draws them.
      *
-     * <p>Ваниль пускает к ним только операторов. Право — альтернатива этому: выдавать
-     * полный OP ради отладочных рендеров слишком крупная монета. Проверяется в ядре,
-     * в {@code ServerDebugSubscribers.hasRequiredPermissions}.
+     * <p>Vanilla admits only operators. This permission is the alternative: handing out full
+     * OP for debug renderers is too large a coin. Checked in the core, in
+     * {@code ServerDebugSubscribers.hasRequiredPermissions}.
      */
     public static final String DEBUG_DATA = "paperlab.debugdata";
 
-    /** Канал servux:hud_metadata: спавн мира, а позже TPS и мобкапы в HUD MiniHUD. */
+    /** The servux:hud_metadata channel: world spawn, and later TPS and mobcaps in MiniHUD. */
     public static final String SERVUX_HUD = "paperlab.servux.hud";
 
     /**
-     * Сид мира через канал Servux.
+     * The world seed, over the Servux channel.
      *
-     * <p>Отдельно от самого канала и по умолчанию не работает без правила
-     * {@code servuxShareSeed}: сид — это знание о мире, которое обычный игрок иначе
-     * не получит, и раздавать его молча неправильно.
+     * <p>Separate from the channel itself: a seed is knowledge about the world an ordinary
+     * player could not otherwise obtain, and handing it out silently would be wrong.
      */
     public static final String SERVUX_SEED = "paperlab.servux.seed";
 
-    /** Канал servux:structures: рамки структур в MiniHUD. */
+    /** The servux:structures channel: structure bounding boxes in MiniHUD. */
     public static final String SERVUX_STRUCTURES = "paperlab.servux.structures";
 
     /**
-     * Канал servux:litematics: серверная вставка схематик.
+     * The servux:litematics channel: server-side schematic pasting.
      *
-     * <p>Отдельно от остальных Servux-прав и не выдаётся заодно с ними: это
-     * единственный канал, который <b>пишет в мир</b>, а не только читает.
+     * <p>Separate from the other Servux nodes and not granted alongside them: this is the one
+     * channel that <b>writes to the world</b> rather than only reading.
      */
     public static final String SERVUX_LITEMATICS = "paperlab.servux.litematics";
 
     /**
-     * Канал servux:entity_data: NBT сущности и блока под прицелом.
+     * The servux:entity_data channel: NBT of the entity and block under the crosshair.
      *
-     * <p>Отдельно от HUD: видеть содержимое любого сундука в зоне видимости —
-     * заметно больше, чем видеть TPS.
+     * <p>Separate from the HUD: seeing the contents of any chest in view is a good deal more
+     * than seeing TPS.
      */
     public static final String SERVUX_ENTITIES = "paperlab.servux.entities";
 
     /**
-     * Право на просмотр NBT других игроков (инвентарь, эндер-сундук, здоровье).
-     * Без него запрос NBT чужого игрока через Servux отклоняется.
+     * Permission to view other players' NBT (inventory, ender chest, health). Without it a
+     * Servux request for another player's NBT is refused.
      */
     public static final String SERVUX_ENTITIES_PLAYERS = "paperlab.servux.entities.players";
 
-    /** Канал servux:tweaks: предпросмотр инвентарей мода Tweakeroo. */
+    /** The servux:tweaks channel: inventory preview for the Tweakeroo mod. */
     public static final String SERVUX_TWEAKS = "paperlab.servux.tweaks";
 
-    // --- вмешательство ---
+    // --- interference ---
     public static final String COUNTER_EDIT = "paperlab.counter.edit";
     public static final String GHOST = "paperlab.ghost";
     public static final String GHOST_OTHER = "paperlab.ghost.other";
@@ -109,15 +109,15 @@ public final class LabPermissions {
     public static final String CPLAY_MANAGE = "paperlab.cplay.manage";
 
     /**
-     * Право сохранять значение правила между перезапусками.
+     * Permission to persist a rule value across restarts.
      *
-     * <p>Отдельно от прав на сами правила: поставить правило на сессию и закрепить его
-     * навсегда — разные по цене действия. Забытое сохранённое правило портит все
-     * последующие замеры молча.
+     * <p>Separate from the rule nodes themselves: setting a rule for the session and pinning
+     * it forever are actions of different cost. A forgotten saved rule silently spoils every
+     * later measurement.
      */
     public static final String RULE_DEFAULT = "paperlab.rule.setdefault";
 
-    /** Право → описание. Порядок сохраняется, он же порядок регистрации. */
+    /** Permission to description. Insertion order is kept and is also the registration order. */
     private static final Map<String, String> NODES = new LinkedHashMap<>();
 
     static {
@@ -154,8 +154,8 @@ public final class LabPermissions {
         NODES.put(CPLAY_CAPTURE, "capture redstone signals into assets");
         NODES.put(CPLAY_MANAGE, "manage all Capture & Playback assets");
         NODES.put(RULE_DEFAULT, "persist rule values across restarts");
-        // По праву на каждое правило: правила меняют поведение мира, и раздавать их
-        // скопом нельзя — кому-то нужен только fillUpdates и ничего больше.
+        // One node per rule: rules change how the world behaves and must not be handed out
+        // wholesale — someone may need fillUpdates and nothing else.
         for (final paperlab.rules.LabRule<?> rule : paperlab.rules.LabRules.all()) {
             NODES.put(rule.permission(), "rule " + rule.name() + ": " + rule.description());
         }
@@ -165,10 +165,10 @@ public final class LabPermissions {
     }
 
     /**
-     * Регистрирует всё дерево. Вызывать один раз при включении плагина.
+     * Registers the whole tree. Call once when the plugin enables.
      *
-     * <p>Повторную регистрацию Bukkit считает ошибкой, поэтому уже занятые узлы
-     * пропускаем: это бывает при {@code /reload}.
+     * <p>Bukkit treats re-registration as an error, so nodes that are already taken are
+     * skipped: that happens on {@code /reload}.
      */
     public static void register() {
         final Map<String, Boolean> children = new LinkedHashMap<>();
@@ -186,12 +186,12 @@ public final class LabPermissions {
         }
     }
 
-    /** Список для {@code /carpet perms}: право и его описание. */
+    /** The list for {@code /carpet perms}: a permission and its description. */
     public static Map<String, String> nodes() {
         return Map.copyOf(NODES);
     }
 
-    /** Порядок вывода — тот же, что при регистрации. */
+    /** Output order is the registration order. */
     public static Iterable<Map.Entry<String, String>> ordered() {
         return NODES.entrySet();
     }
