@@ -156,18 +156,51 @@ public final class CPlayAssetStore {
         return false;
     }
 
+    /**
+     * The asset file as the mod expects to receive it.
+     *
+     * <p>Recordings made before frames moved to their own file still carry our frame format in
+     * the {@code .gsa}. Handing those bytes to a client kills the connection: the mod reads a
+     * length that is not there and its decoder throws {@code minimumReadableBytes: -1}, with
+     * nothing logged on our side. It happened on both paths that serve asset bytes — the
+     * download and the editing session — so the repair lives here, at the single point they
+     * both go through, rather than at each call site.
+     *
+     * <p>The frames are not thrown away: they are moved to where playback now looks for them.
+     */
     public byte[] getAssetData(final UUID assetUUID) {
         final CPlayAssetInfo info = getAsset(assetUUID);
         if (info == null) return null;
         final File file = getAssetFile(info);
         if (file.exists()) {
             try {
-                return Files.readAllBytes(file.toPath());
+                final byte[] data = Files.readAllBytes(file.toPath());
+                if (!looksLikeCaptureFrames(data)) {
+                    return data;
+                }
+                return repairAssetFile(assetUUID, info, data);
             } catch (final IOException e) {
                 logger.warning("Failed to read asset " + assetUUID + ": " + e.getMessage());
             }
         }
         return null;
+    }
+
+    private byte[] repairAssetFile(final UUID assetUUID, final CPlayAssetInfo info, final byte[] frames) {
+        try {
+            final File framesFile = framesFile(assetUUID);
+            if (!framesFile.exists()) {
+                atomicWrite(framesFile, frames);
+            }
+            final byte[] fixed = CPlayWire.encodeDefaultAssetFile(info);
+            atomicWrite(new File(assetsDir, assetUUID.toString() + ".gsa"), fixed);
+            logger.info("Repaired asset file for " + info.getAssetName()
+                + ": recorded frames moved out of the file the client downloads.");
+            return fixed;
+        } catch (final IOException e) {
+            logger.warning("Failed to repair asset " + assetUUID + ": " + e.getMessage());
+            return null;
+        }
     }
 
     /**

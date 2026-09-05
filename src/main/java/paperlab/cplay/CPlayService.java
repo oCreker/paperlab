@@ -24,6 +24,15 @@ import paperlab.cplay.storage.CPlayAssetStore;
 
 public final class CPlayService implements PluginMessageListener {
 
+    /**
+     * Verbose channel log, enabled with {@code -Dpaperlab.cplay.debug=true}.
+     *
+     * <p>Worth having: a malformed reply on this channel does not fail on the server at all —
+     * the client's Netty decoder throws and the connection simply drops, with nothing in our
+     * log to say which packet caused it.
+     */
+    private static final boolean DEBUG = Boolean.getBoolean("paperlab.cplay.debug");
+
     private static CPlayService instance;
 
     private final Plugin plugin;
@@ -76,6 +85,15 @@ public final class CPlayService implements PluginMessageListener {
     public static void send(final Player player, final byte[] body) {
         if (!player.isOnline()) {
             return;
+        }
+        if (DEBUG && body.length >= 8) {
+            final long id = ((long) (body[0] & 0xFF) << 56) | ((long) (body[1] & 0xFF) << 48)
+                | ((long) (body[2] & 0xFF) << 40) | ((long) (body[3] & 0xFF) << 32)
+                | ((long) (body[4] & 0xFF) << 24) | ((long) (body[5] & 0xFF) << 16)
+                | ((long) (body[6] & 0xFF) << 8) | (body[7] & 0xFF);
+            org.bukkit.Bukkit.getLogger().info("[PaperLab] CPlay out: ext=0x"
+                + Integer.toHexString((int) (id >> 32)) + " sub=" + (int) id
+                + " bytes=" + body.length + " to " + player.getName());
         }
         final var connection = ((CraftPlayer) player).getHandle().connection;
         if (connection != null) {
@@ -143,6 +161,11 @@ public final class CPlayService implements PluginMessageListener {
         final int extensionUID = (int) (packetId >> 32L);
         final int subId = (int) packetId;
 
+        if (DEBUG) {
+            plugin.getLogger().info("CPlay in: ext=0x" + Integer.toHexString(extensionUID)
+                + " sub=" + subId + " bytes=" + message.length + " from " + player.getName());
+        }
+
         try {
             if (extensionUID == CPlayProtocol.CORE_UID) {
                 if (subId == CPlayProtocol.PACKET_CORE_CONNECTION) {
@@ -175,14 +198,9 @@ public final class CPlayService implements PluginMessageListener {
                 final UUID assetUUID = CPlayWire.readUUID(buf);
                 final CPlayAssetInfo info = assetStore.getAsset(assetUUID);
                 if (info != null && (info.hasPermission(player) || player.hasPermission(LabPermissions.CPLAY_MANAGE))) {
-                    byte[] data = assetStore.getAssetData(assetUUID);
-                    // Guard for assets recorded before the frames moved to their own file:
-                    // handing our frame format to the mod makes it read a bogus length and
-                    // drop the connection. Give it a valid empty asset instead.
-                    if (paperlab.cplay.storage.CPlayAssetStore.looksLikeCaptureFrames(data)) {
-                        data = CPlayWire.encodeDefaultAssetFile(info);
-                        assetStore.saveAssetData(assetUUID, data);
-                    }
+                    // getAssetData repairs an old recording on the way out, so what is sent
+                    // here is always in the mod's format.
+                    final byte[] data = assetStore.getAssetData(assetUUID);
                     if (data != null) {
                         send(player, CPlayWire.encodeAssetRequestResponseSuccess(data));
                         return;
