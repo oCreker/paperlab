@@ -10,28 +10,28 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
 
-// Компилируемся против jar'ов, собранных из нашего же форка.
+// We compile against jars built from our own fork.
 //
-// Почему не paper-api из репозитория: инструментам нужны внутренности сервера —
-// ServerPlayer.mobCounts, ChunkMap.getMobCountNear, Moonrise ChunkHolderManager.
-// В paper-api их нет по определению. Paper 26.2 работает в mojang-маппинге, поэтому
-// плагин, скомпилированный против серверного jar, грузится без ремаппинга.
+// Why not the published paper-api: the tools need server internals -
+// ServerPlayer.mobCounts, ChunkMap.getMobCountNear, Moonrise's ChunkHolderManager.
+// paper-api does not expose those by design. Paper 26.2 runs on mojang mappings, so a
+// plugin compiled against the server jar loads without remapping.
 //
-// Побочный эффект: плагин привязан к конкретной сборке сервера. Для стенда это
-// приемлемо, для распространения — нет.
+// The side effect: the plugin is tied to a specific server build. Acceptable for a lab,
+// not for distribution.
 val forkLibs = if (file("../paperlab-core").exists()) file("../paperlab-core") else file("../../fork/paper-lab")
 
 dependencies {
-    // paper-api из репозитория — ради транзитивных adventure, brigadier, netty и аннотаций.
-    // Пин, а не floating "26.2.build.+": сборка 92 — та же, что лежит в архиве
-    // исследования и соответствует эпохе нашего форка (commit 0a99345).
+    // The published paper-api, for the transitive adventure, brigadier, netty and annotations.
+    // Pinned rather than floating "26.2.build.+": build 92 is the one in the research archive
+    // and matches the era of our fork (commit 0a99345).
     compileOnly("io.papermc.paper:paper-api:26.2.build.92-stable")
-    // NMS берём из локальной сборки форка: в published paper-api его нет.
+    // NMS comes from the local fork build: the published paper-api does not carry it.
     compileOnly(files("$forkLibs/paper-server/build/libs/paper-server-26.2.local-SNAPSHOT.jar"))
 
-    // Библиотеки, которых нет в paper-api, но которые нужны для работы с NMS:
-    // netty — буферы протокола, DFU и jspecify — аннотации в сигнатурах NMS-классов.
-    // Версии пиним: floating-диапазоны в проверяемой сборке недопустимы.
+    // Libraries absent from paper-api but needed to work with NMS: netty for protocol buffers,
+    // DFU and jspecify for annotations in NMS class signatures.
+    // Versions are pinned: floating ranges have no place in a build under test.
     compileOnly("io.netty:netty-buffer:4.2.2.Final")
     compileOnly("com.mojang:datafixerupper:9.0.19")
     compileOnly("org.jspecify:jspecify:1.0.0")
@@ -54,13 +54,13 @@ dependencies {
     testImplementation(fileTree("libs") { include("*.jar") })
 }
 
-// Дифференциальные тесты сверяют нашу кодировку с настоящим кодом клиентских модов:
-// malilib/MiniHUD (jar-ы) и g4mespeed (исходники классов протокола). Ни то, ни другое
-// в репозитории не лежит и лежать не может — чужой код под своими лицензиями,
-// у g4mespeed это вдобавок GPL-2.0, несовместимая с нашей GPL-3.0.
+// The differential tests check our encoding against the real code of the client mods:
+// malilib/MiniHUD (jars) and g4mespeed (protocol class sources). Neither is in the repository
+// and neither can be - third-party code under its own licence, and g4mespeed's is GPL-2.0,
+// incompatible with our GPL-3.0.
 //
-// Кто хочет их прогнать — кладёт файлы в libs/ сам (см. README, раздел «Сборка»).
-// Без них эти тесты просто не компилируются и исключаются, остальные идут как обычно.
+// Anyone wanting to run them puts the files into libs/ themselves (see README, "Building").
+// Without them these tests simply do not compile and are excluded; the rest run as usual.
 val vendorJars = fileTree("libs") { include("*.jar") }.files.isNotEmpty()
 val vendorSources = file("libs/src")
 
@@ -104,7 +104,7 @@ tasks {
         archiveClassifier = ""
     }
 
-    // Кладём плагин прямо в каталог стенда, чтобы не копировать руками.
+    // Drop the plugin straight into the lab directory, to save copying it by hand.
     register<Copy>("deploy") {
         dependsOn(jar)
         from(jar)

@@ -196,9 +196,9 @@ public final class CPlayAssetStore {
     public synchronized void saveHistory() {
         try {
             final byte[] encoded = CPlayWire.encodeAssetHistory(assetsByUuid.values());
-            // Пропускаем заголовок пакета (8 байт), чтобы сохранить сырой файл history.dat
+            // Skip the packet header (8 bytes) so that history.dat is stored as a raw file.
             final ByteBuf buf = Unpooled.wrappedBuffer(encoded);
-            buf.readLong(); // пропускаем packetId
+            buf.readLong(); // skip the packetId
             final byte[] raw = new byte[buf.readableBytes()];
             buf.readBytes(raw);
             atomicWrite(historyFile, raw);
@@ -233,7 +233,7 @@ public final class CPlayAssetStore {
         try {
             final byte[] encoded = CPlayWire.encodePlayerCache(playerCache.getAll());
             final ByteBuf buf = Unpooled.wrappedBuffer(encoded);
-            buf.readLong(); // пропускаем packetId
+            buf.readLong(); // skip the packetId
             final byte[] raw = new byte[buf.readableBytes()];
             buf.readBytes(raw);
             atomicWrite(playersFile, raw);

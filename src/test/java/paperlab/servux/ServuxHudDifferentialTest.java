@@ -14,10 +14,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Полноценный дифференциальный тест сетевого протокола {@code servux:hud_metadata}.
+ * A full differential test of the {@code servux:hud_metadata} network protocol.
  *
- * <p>Сравнивает оригинальный код мода MiniHUD ({@link ServuxHudPacket} из настоящего jar)
- * с реализацией плагина PaperLab ({@link ServuxWire}, {@link ServuxHud}).
+ * <p>Compares MiniHUD's original code ({@link ServuxHudPacket} from the real jar) against
+ * PaperLab's implementation ({@link ServuxWire}, {@link ServuxHud}).
  */
 public class ServuxHudDifferentialTest {
 
@@ -27,7 +27,7 @@ public class ServuxHudDifferentialTest {
     private static final int S2C_DATA_LOGGER_TICK = 7;
 
     @Test
-    @DisplayName("Дифференциальный тест Handshake: PaperLab Metadata -> Настоящий MiniHUD парсер")
+    @DisplayName("Handshake differential: PaperLab metadata -> the real MiniHUD parser")
     public void testMetadataPacketHandshakeValidation() {
         final CompoundTag tag = new CompoundTag();
         tag.putString("name", "hud_data");
@@ -44,23 +44,23 @@ public class ServuxHudDifferentialTest {
         loggers.putBoolean("mob_caps", true);
         tag.put("Loggers", loggers);
 
-        // Кодируем сетевым NBT PaperLab
+        // Encode with PaperLab's network NBT
         final byte[] wire = ServuxWire.metadata(S2C_METADATA, tag);
 
-        // Декодируем настоящим парсером MiniHUD
+        // Decode with the real MiniHUD parser
         final FriendlyByteBuf inBuf = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final ServuxHudPacket packet = ServuxHudPacket.fromPacket(inBuf);
 
         assertNotNull(packet);
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_METADATA, packet.getType());
-        assertFalse(inBuf.isReadable(), "Все байты пакета обязаны быть вычитаны");
+        assertFalse(inBuf.isReadable(), "every byte of the packet must be consumed");
 
         final CompoundTag data = packet.getCompound();
         final int version = data.getIntOr("version", -1);
         final String servux = data.getStringOr("servux", "?");
 
         assertEquals(3, version);
-        assertTrue(servux.startsWith("servux-fabric-26.2"), "MiniHUD требует префикс 'servux-fabric-26.2'");
+        assertTrue(servux.startsWith("servux-fabric-26.2"), "MiniHUD requires the 'servux-fabric-26.2' prefix");
         assertEquals("hud_data", data.getStringOr("name", ""));
         assertEquals("servux:hud_metadata", data.getStringOr("id", ""));
 
@@ -70,7 +70,7 @@ public class ServuxHudDifferentialTest {
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Weather: Дождь и гроза -> MiniHUD парсер и логика")
+    @DisplayName("Weather differential: rain and thunder -> MiniHUD parser and logic")
     public void testRainAndThunderWeatherIntegration() {
         final CompoundTag thunderWeatherTag = new CompoundTag();
         thunderWeatherTag.putBoolean("isRaining", true);
@@ -84,7 +84,7 @@ public class ServuxHudDifferentialTest {
 
         assertNotNull(parsed);
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_WEATHER_TICK, parsed.getType());
-        assertFalse(inBuf.isReadable(), "Критично: ни одного лишнего байта в Netty-буфере!");
+        assertFalse(inBuf.isReadable(), "critical: not one spare byte may remain in the Netty buffer");
 
         final CompoundTag data = parsed.getCompound();
         assertTrue(data.getBooleanOr("isRaining", false));
@@ -92,7 +92,7 @@ public class ServuxHudDifferentialTest {
         assertEquals(12500, data.getIntOr("SetRaining", -1));
         assertEquals(6400, data.getIntOr("SetThundering", -1));
 
-        // Эмуляция логики MiniHUD HudDataManager.receiveWeatherData
+        // Emulating MiniHUD's HudDataManager.receiveWeatherData
         boolean isRaining = data.getBooleanOr("isRaining", false);
         boolean isThundering = data.getBooleanOr("isThundering", false);
         int rainTime = data.getIntOr("SetRaining", -1);
@@ -102,7 +102,7 @@ public class ServuxHudDifferentialTest {
         assertEquals(12500, rainTime);
         assertEquals(6400, thunderTime);
 
-        // Эмуляция InfoLineWeather:
+        // Emulating InfoLineWeather:
         String weatherType = (isThundering && isRaining) ? "thundering" : (isRaining ? "raining" : "clear");
         int weatherTime = (isThundering && isRaining) ? thunderTime : (isRaining ? rainTime : -1);
 
@@ -111,7 +111,7 @@ public class ServuxHudDifferentialTest {
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Weather: Ясная погода (SetClear) -> MiniHUD валидация цикла")
+    @DisplayName("Weather differential: clear weather (SetClear) -> MiniHUD cycle validation")
     public void testClearWeatherPacketValidation() {
         final CompoundTag weatherTag = new CompoundTag();
         weatherTag.putBoolean("isRaining", false);
@@ -124,7 +124,7 @@ public class ServuxHudDifferentialTest {
 
         assertNotNull(parsed);
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_WEATHER_TICK, parsed.getType());
-        assertFalse(input.isReadable(), "Критично: zero extra bytes!");
+        assertFalse(input.isReadable(), "critical: zero extra bytes");
 
         final CompoundTag data = parsed.getCompound();
         assertNotNull(data);
@@ -134,11 +134,11 @@ public class ServuxHudDifferentialTest {
 
         final int clearTimer = data.getIntOr("SetClear", -1);
         final boolean hasValidWeatherCycle = clearTimer >= 0;
-        assertTrue(hasValidWeatherCycle, "MiniHUD должен считать цикл погоды валидным!");
+        assertTrue(hasValidWeatherCycle, "MiniHUD must consider the weather cycle valid");
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Weather: Клиент MiniHUD -> Сервер PaperLab ServuxWire.readCompressedNbt")
+    @DisplayName("Weather differential: MiniHUD client -> PaperLab server ServuxWire.readCompressedNbt")
     public void testWeatherPacketReverseCrossWire() throws IOException {
         final CompoundTag originalData = new CompoundTag();
         originalData.putBoolean("isRaining", true);
@@ -162,7 +162,7 @@ public class ServuxHudDifferentialTest {
     }
 
     @Test
-    @DisplayName("Дифференциальный тест MobCaps и TPS: PaperLab -> Оригинальный ServuxHudPacket")
+    @DisplayName("MobCaps and TPS differential: PaperLab -> the original ServuxHudPacket")
     public void testDataLoggerMobCapsOriginalParserIntegration() {
         final CompoundTag dataLogger = new CompoundTag();
 
@@ -193,16 +193,16 @@ public class ServuxHudDifferentialTest {
         mobCaps.put("minecraft:overworld", overworldEntry);
         dataLogger.put("mob_caps", mobCaps);
 
-        // Кодируем через PaperLab:
+        // Encode through PaperLab:
         final byte[] wire = ServuxWire.data(S2C_DATA_LOGGER_TICK, dataLogger);
 
-        // Декодируем через оригинальный MiniHUD парсер:
+        // Decode with the original MiniHUD parser:
         final FriendlyByteBuf input = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final ServuxHudPacket parsed = ServuxHudPacket.fromPacket(input);
 
         assertNotNull(parsed);
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_DATA_LOGGER_TICK, parsed.getType());
-        assertFalse(input.isReadable(), "Критично: zero extra bytes!");
+        assertFalse(input.isReadable(), "critical: zero extra bytes");
 
         final CompoundTag compound = parsed.getCompound();
         assertTrue(compound.contains("tps"));
@@ -210,7 +210,7 @@ public class ServuxHudDifferentialTest {
 
         final CompoundTag mobCapsData = compound.getCompoundOrEmpty("mob_caps");
         assertTrue(mobCapsData.contains("minecraft:overworld"),
-            "Оригинальный клиент MiniHUD ищет dimKey в mob_caps");
+            "the original MiniHUD client looks up dimKey in mob_caps");
 
         final CompoundTag owData = mobCapsData.getCompoundOrEmpty("minecraft:overworld");
         assertEquals(45000L, owData.getLongOr("WorldTick", 0L));
@@ -219,7 +219,7 @@ public class ServuxHudDifferentialTest {
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Spawn Data: PaperLab -> Оригинальный ServuxHudPacket")
+    @DisplayName("Spawn data differential: PaperLab -> the original ServuxHudPacket")
     public void testSpawnDataOriginalParserIntegration() {
         final CompoundTag spawnTag = new CompoundTag();
         spawnTag.putString("spawnDimension", "minecraft:overworld");
@@ -234,7 +234,7 @@ public class ServuxHudDifferentialTest {
 
         assertNotNull(parsed);
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_SPAWN_DATA, parsed.getType());
-        assertFalse(input.isReadable(), "Критично: zero extra bytes!");
+        assertFalse(input.isReadable(), "critical: zero extra bytes");
 
         final CompoundTag compound = parsed.getCompound();
         assertEquals("minecraft:overworld", compound.getStringOr("spawnDimension", ""));
@@ -243,9 +243,9 @@ public class ServuxHudDifferentialTest {
         assertEquals(-200, compound.getIntOr("spawnPosZ", 0));
     }
 
-    // --- 5. Дифференциальный фаззинг Weather (10 000 итераций) ---
+    // --- 5. Weather differential fuzz (10,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг Weather: PaperLab vs Mod в обе стороны [10 000 итераций]")
+    @DisplayName("Weather differential fuzz: PaperLab vs mod, both directions [10,000 iterations]")
     public void fuzzWeatherDifferential() throws IOException {
         final Random rng = new Random(1337L);
         for (int i = 0; i < 10_000; i++) {
@@ -303,9 +303,9 @@ public class ServuxHudDifferentialTest {
         }
     }
 
-    // --- 6. Дифференциальный фаззинг MobCaps и TPS (5 000 итераций) ---
+    // --- 6. MobCaps and TPS differential fuzz (5,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг MobCaps и TPS [5 000 итераций]")
+    @DisplayName("MobCaps and TPS differential fuzz [5,000 iterations]")
     public void fuzzMobCapsDifferential() {
         final Random rng = new Random(4242L);
         final String[] dims = {"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end", "custom:space"};
@@ -366,9 +366,9 @@ public class ServuxHudDifferentialTest {
         }
     }
 
-    // --- 7. Дифференциальный фаззинг Spawn Data (5 000 итераций) ---
+    // --- 7. Spawn data differential fuzz (5,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг Spawn Data [5 000 итераций]")
+    @DisplayName("Spawn data differential fuzz [5,000 iterations]")
     public void fuzzSpawnDataDifferential() {
         final Random rng = new Random(9999L);
         final String[] dims = {"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end", "dim:void"};
@@ -401,9 +401,9 @@ public class ServuxHudDifferentialTest {
         }
     }
 
-    // --- 8. Мутационный фаззинг сетевого потока (10 000 итераций) ---
+    // --- 8. Wire mutation fuzz (10,000 iterations) ---
     @Test
-    @DisplayName("Мутационный фаззинг сетевого потока: устойчивость к повреждённым байтам и неполным пакетам [10 000 итераций]")
+    @DisplayName("Wire mutation fuzz: resistance to corrupt bytes and incomplete packets [10,000 iterations]")
     public void fuzzMutationalRobustness() {
         final Random rng = new Random(777L);
         final CompoundTag validTag = new CompoundTag();
@@ -417,19 +417,19 @@ public class ServuxHudDifferentialTest {
             final byte[] mutated;
 
             if (mutationType == 0) {
-                // Обрезаем пакет
+                // Truncate the packet
                 final int cut = rng.nextInt(validBytes.length);
                 mutated = new byte[cut];
                 System.arraycopy(validBytes, 0, mutated, 0, cut);
             } else if (mutationType == 1) {
-                // Повреждаем случайные байты в потоке
+                // Corrupt random bytes in the stream
                 mutated = validBytes.clone();
                 final int flips = 1 + rng.nextInt(5);
                 for (int f = 0; f < flips; f++) {
                     mutated[rng.nextInt(mutated.length)] = (byte) rng.nextInt(256);
                 }
             } else {
-                // Полностью случайный мусор произвольной длины
+                // Entirely random junk of arbitrary length
                 final int noiseLen = rng.nextInt(128);
                 mutated = new byte[noiseLen];
                 rng.nextBytes(mutated);
@@ -437,11 +437,11 @@ public class ServuxHudDifferentialTest {
 
             final FriendlyByteBuf inBuf = new FriendlyByteBuf(Unpooled.wrappedBuffer(mutated));
             try {
-                // Вызываем оригинальный парсер MiniHUD:
-                // Он должен либо успешно распарсить, либо безопасно вернуть null / выбросить исключение (без зависания или OOM)
+                // Call the original MiniHUD parser:
+                // It must either parse successfully or safely return null / throw (no hang, no OOM)
                 ServuxHudPacket.fromPacket(inBuf);
             } catch (final Throwable expectedSafeFailure) {
-                // Безопасное отклонение повреждённого пакета
+                // Safe rejection of a corrupted packet
             } finally {
                 inBuf.release();
             }

@@ -92,15 +92,15 @@ public final class CPlayService implements PluginMessageListener {
                 return;
             }
 
-            // 1. Отправляем рукопожатие соединений G4mespeed в обход sendPluginMessage,
-            //    чтобы клиентский мод сразу распознал наличие сервера CPlay.
+            // 1. Send the G4mespeed connection handshake bypassing sendPluginMessage, so the
+            //    client mod recognises a CPlay server straight away.
             send(player, CPlayWire.encodeConnectionPacket());
 
-            // 2. Отправляем историю ассетов и кэш игроков
+            // 2. Send the asset history and the player cache.
             send(player, CPlayWire.encodeAssetHistory(instance.assetStore.getAllAssets()));
             send(player, CPlayWire.encodePlayerCache(instance.assetStore.getPlayerCache().getAll()));
 
-            // 3. Регистрируем игрока в кэше и объявляем остальным
+            // 3. Register the player in the cache and announce them to the rest.
             instance.assetStore.getPlayerCache().put(player.getUniqueId(), player.getName());
             Bukkit.getAsyncScheduler().runNow(instance.plugin, t -> instance.assetStore.savePlayers());
             broadcast(CPlayWire.encodePlayerCacheAdded(player.getUniqueId(), player.getName()), player);
@@ -112,7 +112,7 @@ public final class CPlayService implements PluginMessageListener {
         instance.sessionManager.onPlayerQuit(player);
     }
 
-    /** Пускать ли игрока в канал вообще. */
+    /** Whether to admit the player to the channel at all. */
     private static boolean allowed(final Player player) {
         return player.hasPermission(LabPermissions.CPLAY);
     }
@@ -131,9 +131,9 @@ public final class CPlayService implements PluginMessageListener {
         if (!CPlayProtocol.CHANNEL.equals(channel) || message.length < 8) {
             return;
         }
-        // Право проверяется на входе в канал, а не только у команд: без этого любой
-        // игрок с модом мог создавать и импортировать ассеты, то есть писать файлы
-        // на сервер, ни разу не получив paperlab.cplay.
+        // The permission is checked at the channel entry, not only on the commands: without
+        // that, any player with the mod could create and import assets — that is, write files to
+        // the server — without ever being granted paperlab.cplay.
         if (!allowed(player)) {
             return;
         }
@@ -146,7 +146,7 @@ public final class CPlayService implements PluginMessageListener {
         try {
             if (extensionUID == CPlayProtocol.CORE_UID) {
                 if (subId == CPlayProtocol.PACKET_CORE_CONNECTION) {
-                    // Клиент ответил своим ConnectionPacket
+                    // The client replied with its own ConnectionPacket.
                     send(player, CPlayWire.encodeAssetHistory(assetStore.getAllAssets()));
                     send(player, CPlayWire.encodePlayerCache(assetStore.getPlayerCache().getAll()));
                 }
@@ -253,7 +253,7 @@ public final class CPlayService implements PluginMessageListener {
                 }
             }
             default -> {
-                // Игнорируем неизвестные подтипы
+                // Unknown subtypes are ignored.
             }
         }
     }

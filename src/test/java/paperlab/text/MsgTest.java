@@ -12,13 +12,14 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Test;
 
 /**
- * Проверки порта карпетовской разметки.
+ * Checks for the port of Carpet's markup.
  *
- * <p>Главный из них — {@link #modifierDoesNotDuplicateText()}. Первая версия
- * {@link Msg} повторяла Carpet буквально: там служебное поле правит компонент на месте,
- * и признаком служило совпадение ссылок. У Adventure компоненты неизменяемые, ссылка
- * всегда новая, и каждый кусок с кнопкой или подсказкой молча дублировался. В логе это
- * выглядело как {@code - fakePlayerNameSuffix - fakePlayerNameSuffix - fakePlayerNameSuffix}.
+ * <p>The important one is {@link #modifierDoesNotDuplicateText()}. The first version of
+ * {@link Msg} followed Carpet literally: there a control field edits the component in place, and
+ * reference identity was the signal. Adventure's components are immutable, the reference is
+ * always new, and every piece carrying a button or a tooltip was silently duplicated. In the log
+ * it looked like
+ * {@code - fakePlayerNameSuffix - fakePlayerNameSuffix - fakePlayerNameSuffix}.
  */
 class MsgTest {
 
@@ -33,8 +34,8 @@ class MsgTest {
 
     @Test
     void leadingSpaceMeansWhite() {
-        // " - foo" превращается в "w - foo", и первый пробел съедается как разделитель
-        // стиля и текста. Поэтому в Carpet отступ пишут двумя пробелами: "w  - foo".
+        // " - foo" becomes "w - foo", and the first space is consumed as the separator between
+        // style and text. That is why Carpet writes an indent with two spaces: "w  - foo".
         final Component one = Msg.c(" - foo");
         assertEquals("- foo", plain(one));
         assertEquals(NamedTextColor.WHITE, one.children().get(0).color());
@@ -64,7 +65,7 @@ class MsgTest {
 
     @Test
     void lastColourCodeWins() {
-        // "lb" — зелёный и жирный: буква цвета одна, b это начертание.
+        // "lb" is green and bold: one colour letter, and b is a decoration.
         final Component out = Msg.c("lb x");
         final Component part = out.children().get(0);
         assertEquals(NamedTextColor.GREEN, part.color());
@@ -85,7 +86,7 @@ class MsgTest {
 
     @Test
     void modifierOnFirstFieldIsTreatedAsText() {
-        // Вешать событие не на что — Carpet в этом случае создаёт обычный компонент.
+        // There is nothing to attach an event to — Carpet creates a plain component here.
         assertTrue(plain(Msg.c("^g hint")).contains("hint"));
     }
 

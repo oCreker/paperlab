@@ -17,36 +17,36 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * {@code /log} — подписки HUD, как в Carpet.
+ * {@code /log} — HUD subscriptions, as in Carpet.
  *
  * <pre>
- * /log                        что есть и на что подписан
- * /log tps                    вкл/выкл
- * /log mobcaps [ник] [full]
- * /log counter &lt;цвет&gt; [full]
- * /log spawn [причина]
- * /log &lt;имя&gt; clear            снять подписки этого логгера
- * /log clear                  снять всё
+ * /log                        what exists and what you are subscribed to
+ * /log tps                    toggle
+ * /log mobcaps [name] [full]
+ * /log counter &lt;colour&gt; [full]
+ * /log spawn [reason]
+ * /log &lt;name&gt; clear           drop this logger's subscriptions
+ * /log clear                  drop everything
  * </pre>
  *
- * Подписок на один логгер может быть несколько — по одной на цель. Повторная команда
- * с той же целью выключает её, с другим флагом — заменяет.
+ * A logger can hold several subscriptions, one per target. Repeating the command with the same
+ * target turns it off; with a different flag, replaces it.
  *
- * <p>Тексты и раскладка взяты из Carpet Mod (MIT, (c) gnembon), см. THIRD-PARTY.md.
+ * <p>Text and layout come from Carpet Mod (MIT, (c) gnembon), see THIRD-PARTY.md.
  */
 public final class LabLogCommand {
 
     private LabLogCommand() {
     }
 
-    /** {@value} — подпись в списке команд. */
+    /** {@value} — the caption in the command list. */
     public static final String HELP = "tab-list subscriptions";
 
     public static LiteralArgumentBuilder<CommandSourceStack> node(final String name) {
         return Commands.literal(name)
-                // Консоль команду видит, но получает «For players only» — как в Carpet.
-                // Прятать её из дерева было бы удобнее нам и непонятнее тому, кто ищет
-                // команду в списке и не находит.
+                // The console sees the command but gets "For players only", as in Carpet.
+                // Hiding it from the tree would be easier for us and more confusing for someone
+                // looking for it in the list and not finding it.
                 .requires(source -> source.getSender().hasPermission(LabPermissions.LOG))
                 .executes(ctx -> list(ctx.getSource()))
                 .then(Commands.literal("clear").executes(ctx -> clearAll(ctx.getSource())))
@@ -119,12 +119,12 @@ public final class LabLogCommand {
     }
 
     /**
-     * Список логгеров — раскладка Carpet: разделитель, заголовок, строка на логгер
-     * с кнопками опций и крестиком отписки.
+     * The logger list — Carpet's layout: separator, header, one line per logger with option
+     * buttons and an unsubscribe cross.
      *
-     * <p>Отличие от Carpet ровно одно и оно от нашей модели подписок: у Carpet опция
-     * у логгера одна, у нас их может быть несколько (мобкапы сразу нескольких игроков).
-     * Поэтому подсвечены зелёным <b>все</b> активные, а не одна.
+     * <p>There is exactly one difference from Carpet, and it comes from our subscription model:
+     * Carpet has one option per logger, we can have several (mobcaps of several players at
+     * once). So <b>every</b> active option is highlighted green, not just one.
      */
     private static int list(final CommandSourceStack source) {
         if (!(source.getSender() instanceof final Player player)) {
@@ -176,11 +176,11 @@ public final class LabLogCommand {
     }
 
     /**
-     * Какие кнопки показать у логгера: его опции плюс активные подписки, которых
-     * в списке опций нет.
+     * Which buttons to show for a logger: its options plus any active subscription that is not
+     * in the option list.
      *
-     * <p>Второе — не мелочь: у мобкапов цель это ник, списком его не предусмотреть,
-     * и без этого собственная подписка не имела бы кнопки отключения.
+     * <p>The second part is not a detail: for mobcaps the target is a player name, which no
+     * list can anticipate, and without this your own subscription would have no off button.
      */
     private static List<String> buttons(final LabLogger logger, final Collection<String> active) {
         final List<String> out = new ArrayList<>();
@@ -218,7 +218,8 @@ public final class LabLogCommand {
             Msg.m(player, "r Unknown logger: ", "rb " + loggerName);
             return 0;
         }
-        // Логгер — аргумент, а не литерал, поэтому право проверяется здесь, а не в requires.
+        // The logger is an argument rather than a literal, so the permission is checked here
+        // rather than in requires.
         final String permission = LabLoggers.permissionOf(logger);
         if (!player.hasPermission(permission)) {
             Msg.m(player, "r Missing permission: ", "rb " + permission);
@@ -252,7 +253,7 @@ public final class LabLogCommand {
     }
 
 
-    /** Если подписок больше нет — убрать футер сразу. */
+    /** If no subscriptions remain, clear the footer at once. */
     private static void refresh(final Player player) {
         for (final LabLogger logger : LabLoggers.all()) {
             if (logger.subscribed(player.getName())) {

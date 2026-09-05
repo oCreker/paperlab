@@ -15,10 +15,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Дифференциальные тесты протоколов {@code servux:entity_data} и {@code servux:structures}.
+ * Differential tests of the {@code servux:entity_data} and {@code servux:structures} protocols.
  *
- * <p>Сравнивает оригинальный клиентский код MiniHUD (классы {@link ServuxEntitiesPacket}
- * и {@link ServuxStructuresPacket}) с сетевой реализацией PaperLab.
+ * <p>Compares MiniHUD's original client code ({@link ServuxEntitiesPacket} and
+ * {@link ServuxStructuresPacket}) against PaperLab's wire implementation.
  */
 public class ServuxEntitiesDifferentialTest {
 
@@ -30,7 +30,7 @@ public class ServuxEntitiesDifferentialTest {
     private static final int S2C_ENTITY_NBT_RESPONSE = 6;
 
     @Test
-    @DisplayName("Дифференциальный тест Metadata Entities: PaperLab -> MiniHUD")
+    @DisplayName("Entity metadata differential: PaperLab -> MiniHUD")
     public void testEntitiesMetadataHandshake() {
         final CompoundTag tag = new CompoundTag();
         tag.putString("name", "entity_data");
@@ -42,15 +42,15 @@ public class ServuxEntitiesDifferentialTest {
         final FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final ServuxEntitiesPacket packet = ServuxEntitiesPacket.fromPacket(buf);
 
-        assertNotNull(packet, "MiniHUD обязан успешно распарсить пакет метаданных сущностей");
+        assertNotNull(packet, "MiniHUD must parse the entity metadata packet successfully");
         assertEquals(ServuxEntitiesPacket.Type.PACKET_S2C_METADATA, packet.getType());
-        assertFalse(buf.isReadable(), "Буфер метаданных сущностей обязан быть полностью вычитан");
+        assertFalse(buf.isReadable(), "the entity metadata buffer must be fully consumed");
         assertEquals("entity_data", packet.getCompound().getStringOr("name", ""));
         assertEquals(2, packet.getCompound().getIntOr("version", -1));
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Block Entity Response: PaperLab -> MiniHUD")
+    @DisplayName("Block entity response differential: PaperLab -> MiniHUD")
     public void testBlockEntityResponse() {
         final BlockPos pos = new BlockPos(123, -45, 6789);
         final CompoundTag tag = new CompoundTag();
@@ -69,15 +69,15 @@ public class ServuxEntitiesDifferentialTest {
         final FriendlyByteBuf clientBuf = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final ServuxEntitiesPacket packet = ServuxEntitiesPacket.fromPacket(clientBuf);
 
-        assertNotNull(packet, "MiniHUD обязан успешно разобрать ответ на запрос тайл-энтити");
+        assertNotNull(packet, "MiniHUD must parse the block entity response successfully");
         assertEquals(ServuxEntitiesPacket.Type.PACKET_S2C_BLOCK_NBT_RESPONSE_SIMPLE, packet.getType());
-        assertEquals(pos, packet.getPos(), "Координаты блока обязаны совпадать с точностью до блока");
-        assertEquals(tag, packet.getCompound(), "NBT данные тайл-энтити обязаны совпадать 1-в-1");
-        assertFalse(clientBuf.isReadable(), "Буфер ответа обязан быть полностью вычитан (0 байт лишних)");
+        assertEquals(pos, packet.getPos(), "the block coordinates must match exactly");
+        assertEquals(tag, packet.getCompound(), "the block entity NBT must match exactly");
+        assertFalse(clientBuf.isReadable(), "the response buffer must be fully consumed (zero spare bytes)");
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Entity Response: PaperLab -> MiniHUD")
+    @DisplayName("Entity response differential: PaperLab -> MiniHUD")
     public void testEntityResponse() {
         final int entityId = 42069;
         final CompoundTag tag = new CompoundTag();
@@ -96,15 +96,15 @@ public class ServuxEntitiesDifferentialTest {
         final FriendlyByteBuf clientBuf = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final ServuxEntitiesPacket packet = ServuxEntitiesPacket.fromPacket(clientBuf);
 
-        assertNotNull(packet, "MiniHUD обязан успешно разобрать ответ на запрос сущности");
+        assertNotNull(packet, "MiniHUD must parse the entity response successfully");
         assertEquals(ServuxEntitiesPacket.Type.PACKET_S2C_ENTITY_NBT_RESPONSE_SIMPLE, packet.getType());
-        assertEquals(entityId, packet.getEntityId(), "Entity ID обязан совпадать");
-        assertEquals(tag, packet.getCompound(), "NBT данные сущности обязаны совпадать 1-в-1");
-        assertFalse(clientBuf.isReadable(), "Буфер ответа обязан быть полностью вычитан (0 байт лишних)");
+        assertEquals(entityId, packet.getEntityId(), "the entity id must match");
+        assertEquals(tag, packet.getCompound(), "the entity NBT must match exactly");
+        assertFalse(clientBuf.isReadable(), "the response buffer must be fully consumed (zero spare bytes)");
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Client Block Entity Request: MiniHUD -> PaperLab парсер")
+    @DisplayName("Client block entity request differential: MiniHUD -> PaperLab parser")
     public void testClientBlockEntityRequestParsing() {
         final BlockPos targetPos = new BlockPos(-500, 12, 1024);
         final ServuxEntitiesPacket clientPacket = ServuxEntitiesPacket.BlockEntityRequest(targetPos);
@@ -117,7 +117,7 @@ public class ServuxEntitiesDifferentialTest {
         clientOut.readBytes(wire);
         clientOut.release();
 
-        // Проверяем логику PaperLab разбора
+        // Check PaperLab's parsing logic
         final FriendlyByteBuf serverIn = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final int type = serverIn.readVarInt();
         assertEquals(C2S_BLOCK_ENTITY_REQUEST, type);
@@ -128,11 +128,11 @@ public class ServuxEntitiesDifferentialTest {
         }
         final BlockPos parsedPos = serverIn.readBlockPos();
         assertEquals(targetPos, parsedPos);
-        assertFalse(serverIn.isReadable(), "Серверный разбор обязан вычитать все байты запроса");
+        assertFalse(serverIn.isReadable(), "server-side parsing must consume every byte of the request");
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Client Entity Request: MiniHUD -> PaperLab парсер")
+    @DisplayName("Client entity request differential: MiniHUD -> PaperLab parser")
     public void testClientEntityRequestParsing() {
         final int targetEntityId = 1337;
         final ServuxEntitiesPacket clientPacket = ServuxEntitiesPacket.EntityRequest(targetEntityId);
@@ -145,7 +145,7 @@ public class ServuxEntitiesDifferentialTest {
         clientOut.readBytes(wire);
         clientOut.release();
 
-        // Проверяем логику PaperLab разбора
+        // Check PaperLab's parsing logic
         final FriendlyByteBuf serverIn = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final int type = serverIn.readVarInt();
         assertEquals(C2S_ENTITY_REQUEST, type);
@@ -153,11 +153,11 @@ public class ServuxEntitiesDifferentialTest {
         final int first = serverIn.readVarInt();
         final int entityId = serverIn.isReadable() ? serverIn.readVarInt() : first;
         assertEquals(targetEntityId, entityId);
-        assertFalse(serverIn.isReadable(), "Серверный разбор обязан вычитать все байты запроса");
+        assertFalse(serverIn.isReadable(), "server-side parsing must consume every byte of the request");
     }
 
     @Test
-    @DisplayName("Дифференциальный тест Structures Metadata: PaperLab -> MiniHUD")
+    @DisplayName("Structure metadata differential: PaperLab -> MiniHUD")
     public void testStructuresMetadataHandshake() {
         final CompoundTag tag = new CompoundTag();
         tag.putString("name", "structure_bounding_boxes");
@@ -170,15 +170,15 @@ public class ServuxEntitiesDifferentialTest {
         final FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.wrappedBuffer(wire));
         final ServuxStructuresPacket packet = ServuxStructuresPacket.fromPacket(buf);
 
-        assertNotNull(packet, "MiniHUD обязан успешно разобрать метаданные структур");
+        assertNotNull(packet, "MiniHUD must parse the structure metadata successfully");
         assertEquals(ServuxStructuresPacket.Type.PACKET_S2C_METADATA, packet.getType());
-        assertFalse(buf.isReadable(), "Буфер метаданных структур обязан быть полностью вычитан");
+        assertFalse(buf.isReadable(), "the structure metadata buffer must be fully consumed");
         assertEquals("structure_bounding_boxes", packet.getCompound().getStringOr("name", ""));
         assertEquals(300, packet.getCompound().getIntOr("timeout", 0));
     }
 
     @Test
-    @DisplayName("Фаззинг Entities протокола: 10 000 итераций блочных и сущностных ответов")
+    @DisplayName("Entity protocol fuzz: 10,000 iterations of block and entity responses")
     public void testEntitiesDifferentialFuzzing() {
         final Random rng = new Random(0xCAFEBABE);
         for (int i = 0; i < 10_000; i++) {

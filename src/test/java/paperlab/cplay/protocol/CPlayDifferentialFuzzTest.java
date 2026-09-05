@@ -22,22 +22,22 @@ import paperlab.cplay.model.CPlayAssetType;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Расширенное дифференциальное фаззинг-тестирование сетевого протокола CPlay:
- * Проверка взаимной совместимости, устойчивости к мутациям и граничным условиям
- * между эталонной спецификацией G4mespeed и реализацией PaperLab (> 200 000 итераций).
+ * Extended differential fuzzing of the CPlay network protocol: mutual compatibility,
+ * resistance to mutation, and boundary conditions between the reference G4mespeed
+ * specification and PaperLab's implementation (over 200,000 iterations).
  */
 public class CPlayDifferentialFuzzTest {
 
     private static final int LARGE_FUZZ_ITERATIONS = 50_000;
-    private final Random rng = new Random(42L); // Фиксированный сид для детерминированной воспроизводимости
+    private final Random rng = new Random(42L); // Fixed seed for deterministic reproducibility
 
-    // --- 1. Дифференциальный фаззинг генератора и парсера хэндлов (50 000 итераций) ---
+    // --- 1. Differential fuzz of the handle generator and parser (50,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг CPlayAssetHandle: генерация, санитизация и граничные строки [50 000 итераций]")
+    @DisplayName("CPlayAssetHandle differential fuzz: generation, sanitising and boundary strings [50,000 iterations]")
     public void fuzzAssetHandleGenerationAndParsing() throws Exception {
         final String[] charPool = {
             "a", "b", "z", "0", "1", "9", "_", "-", " ", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")",
-            "А", "я", "Ж", "ш", "🔥", "🚀", "⚡", "\t", "\n", "\r", "\0", ".", "/", "\\", ":", ";", "'", "\"",
+            "A", "z", "Zh", "sh", "🔥", "🚀", "⚡", "\t", "\n", "\r", "\0", ".", "/", "\\", ":", ";", "'", "\"",
             "~", "`", "+", "=", "[", "]", "{", "}", "|", "<", ">", "?", "ç", "é", "ö", "ü", "ñ", "中", "文"
         };
 
@@ -51,7 +51,7 @@ public class CPlayDifferentialFuzzTest {
             final CPlayAssetNamespace ns = rng.nextBoolean() ? CPlayAssetNamespace.GLOBAL : CPlayAssetNamespace.WORLD;
             final String suffix = rng.nextBoolean() ? String.valueOf(rng.nextInt(100)) : "";
 
-            // 1. Реальный класс мода:
+            // 1. The real mod class:
             final com.g4mesoft.captureplayback.common.asset.GSEAssetNamespace modNs =
                 (ns == CPlayAssetNamespace.GLOBAL)
                     ? com.g4mesoft.captureplayback.common.asset.GSEAssetNamespace.GLOBAL
@@ -59,15 +59,15 @@ public class CPlayDifferentialFuzzTest {
             final com.g4mesoft.captureplayback.common.asset.GSAssetHandle modHandle =
                 com.g4mesoft.captureplayback.common.asset.GSAssetHandle.fromName(modNs, rawName, suffix);
 
-            // 2. Реальный класс плагина:
+            // 2. The real plugin class:
             final CPlayAssetHandle pluginHandle = CPlayAssetHandle.fromName(ns, rawName, suffix);
 
-            // Попарная посимвольная сверка реального мода и плагина:
+            // Character-by-character comparison of the real mod and the plugin:
             assertEquals(modHandle.getHandle(), pluginHandle.getHandle(), "Handle mismatch for rawName: '" + rawName + "'");
             assertEquals(modHandle.toString(), pluginHandle.toString(), "Handle toString mismatch");
             assertEquals(modHandle.getNamespace().getIndex(), pluginHandle.getNamespace().getIndex());
 
-            // Кросс-сериализация: кодируем классом мода GSEncodeBuffer, читаем плагином CPlayWire:
+            // Cross-serialisation: encode with the mod's GSEncodeBuffer, read with CPlayWire:
             final ByteBuf crossBuf = Unpooled.buffer();
             final com.g4mesoft.util.GSEncodeBuffer encBuf = com.g4mesoft.util.GSEncodeBuffer.wrap(crossBuf);
             com.g4mesoft.captureplayback.common.asset.GSAssetHandle.write(encBuf, modHandle);
@@ -75,7 +75,7 @@ public class CPlayDifferentialFuzzTest {
             final CPlayAssetHandle crossReadByPlugin = CPlayWire.readAssetHandle(crossBuf);
             assertEquals(pluginHandle, crossReadByPlugin);
 
-            // Обратная кросс-сериализация: пишем плагином CPlayWire, читаем классом мода GSDecodeBuffer:
+            // Reverse cross-serialisation: write with CPlayWire, read with the mod's GSDecodeBuffer:
             crossBuf.clear();
             CPlayWire.writeAssetHandle(crossBuf, pluginHandle);
             final com.g4mesoft.util.GSDecodeBuffer decBuf = com.g4mesoft.util.GSDecodeBuffer.wrap(crossBuf);
@@ -86,9 +86,9 @@ public class CPlayDifferentialFuzzTest {
         }
     }
 
-    // --- 2. Дифференциальный фаззинг пакета создания ассета (50 000 итераций) ---
+    // --- 2. Differential fuzz of the asset creation packet (50,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг GSCreateAssetPacket: Mod Wire Encoder vs PaperLab Wire Decoder [50 000 итераций]")
+    @DisplayName("GSCreateAssetPacket differential fuzz: mod wire encoder vs PaperLab wire decoder [50,000 iterations]")
     public void fuzzCreateAssetPacketModWireToPaperLab() {
         for (int i = 0; i < LARGE_FUZZ_ITERATIONS; i++) {
             final String randomName = generateRandomString(rng, 0, 100);
@@ -99,7 +99,7 @@ public class CPlayDifferentialFuzzTest {
             final boolean hasOriginal = rng.nextBoolean();
             final UUID origUUID = hasOriginal ? UUID.randomUUID() : null;
 
-            // Сериализация в эталонном формате мода GSCreateAssetPacket.write
+            // Serialise in the mod's reference format, GSCreateAssetPacket.write
             final ByteBuf wireBuf = Unpooled.buffer();
             CPlayWire.writeString(wireBuf, randomName);
             wireBuf.writeByte(typeIndex);
@@ -109,7 +109,7 @@ public class CPlayDifferentialFuzzTest {
                 CPlayWire.writeUUID(wireBuf, origUUID);
             }
 
-            // Десериализация логикой PaperLab CPlayService
+            // Deserialise with PaperLab's CPlayService logic
             final String readName = CPlayWire.readString(wireBuf);
             final int readTypeIndex = wireBuf.readByte() & 0xFF;
             final CPlayAssetType readType = CPlayAssetType.fromIndex(readTypeIndex);
@@ -124,21 +124,21 @@ public class CPlayDifferentialFuzzTest {
             assertEquals(handle, readHandle);
             assertEquals(hasOriginal, readHasOrig);
             assertEquals(origUUID, readOrigUUID);
-            assertEquals(0, wireBuf.readableBytes(), "Все байты пакета создания должны быть вычитаны");
+            assertEquals(0, wireBuf.readableBytes(), "every byte of the creation packet must be consumed");
             wireBuf.release();
         }
     }
 
-    // --- 3. Дифференциальный фаззинг пакета импорта ассета (20 000 итераций) ---
+    // --- 3. Differential fuzz of the asset import packet (20,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг GSImportAssetPacket: Mod Wire Encoder vs PaperLab Wire Decoder [20 000 итераций]")
+    @DisplayName("GSImportAssetPacket differential fuzz: mod wire encoder vs PaperLab wire decoder [20,000 iterations]")
     public void fuzzImportAssetPacketModWireToPaperLab() {
         for (int i = 0; i < 20_000; i++) {
             final String randomName = generateRandomString(rng, 1, 50);
             final CPlayAssetNamespace ns = rng.nextBoolean() ? CPlayAssetNamespace.GLOBAL : CPlayAssetNamespace.WORLD;
             final CPlayAssetHandle handle = new CPlayAssetHandle(ns, generateRandomBase36(rng, 1, 20));
 
-            // Генерируем валидный файл ассета с заголовком
+            // Generate a valid asset file with a header
             final int typeIndex = rng.nextInt(2);
             final ByteBuf fileBuf = Unpooled.buffer();
             fileBuf.writeByte((byte) (0x80 | 1)); // formatVersion 1 versioned
@@ -157,13 +157,13 @@ public class CPlayDifferentialFuzzTest {
             fileBuf.readBytes(rawFileBytes);
             fileBuf.release();
 
-            // Мод пишет: String name, GSAssetHandle handle, byte[] rawFile
+            // The mod writes: String name, GSAssetHandle handle, byte[] rawFile
             final ByteBuf wireBuf = Unpooled.buffer();
             CPlayWire.writeString(wireBuf, randomName);
             CPlayWire.writeAssetHandle(wireBuf, handle);
             wireBuf.writeBytes(rawFileBytes);
 
-            // PaperLab парсинг:
+            // PaperLab parsing:
             final String readName = CPlayWire.readString(wireBuf);
             final CPlayAssetHandle readHandle = CPlayWire.readAssetHandle(wireBuf);
             final byte[] readFileBytes = new byte[wireBuf.readableBytes()];
@@ -173,7 +173,7 @@ public class CPlayDifferentialFuzzTest {
             assertEquals(handle, readHandle);
             assertArrayEquals(rawFileBytes, readFileBytes);
 
-            // Определение типа ассета из заголовка файла:
+            // Determine the asset type from the file header:
             int derivedTypeIndex = 0;
             if (readFileBytes.length >= 2) {
                 int fmt = readFileBytes[0] & 0xFF;
@@ -188,9 +188,9 @@ public class CPlayDifferentialFuzzTest {
         }
     }
 
-    // --- 4. Дифференциальный фаззинг пакета истории ассетов (5 000 итераций) ---
+    // --- 4. Differential fuzz of the asset history packet (5,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг GSAssetHistory: PaperLab Encoder vs Mod GSAssetHistory Decoder [5 000 итераций]")
+    @DisplayName("GSAssetHistory differential fuzz: PaperLab encoder vs mod GSAssetHistory decoder [5,000 iterations]")
     public void fuzzAssetHistoryPaperLabEncoderVsModDecoder() {
         for (int i = 0; i < 5000; i++) {
             final int assetCount = rng.nextInt(15);
@@ -215,16 +215,16 @@ public class CPlayDifferentialFuzzTest {
                 assets.add(info);
             }
 
-            // Кодирование через PaperLab CPlayWire
+            // Encode through PaperLab's CPlayWire
             final byte[] packetBytes = CPlayWire.encodeAssetHistory(assets);
             final ByteBuf buf = Unpooled.wrappedBuffer(packetBytes);
 
-            // Декодирование по спецификации мода GSAssetHistoryPacket / GSAssetHistory
+            // Decode per the mod's GSAssetHistoryPacket / GSAssetHistory specification
             final long packetId = buf.readLong();
             assertEquals(CPlayProtocol.makePacketId(CPlayProtocol.CAPL_UID, CPlayProtocol.PACKET_CAPL_ASSET_HISTORY), packetId);
 
             final byte fileVersion = buf.readByte();
-            assertEquals(0, fileVersion, "fileVersion в моде обязан быть 0x00");
+            assertEquals(0, fileVersion, "the mod requires fileVersion to be 0x00");
 
             final int readCount = buf.readInt();
             assertEquals(assets.size(), readCount);
@@ -257,14 +257,14 @@ public class CPlayDifferentialFuzzTest {
                 }
             }
 
-            assertEquals(0, buf.readableBytes(), "Буфер истории должен быть прочитан полностью");
+            assertEquals(0, buf.readableBytes(), "the history buffer must be read in full");
             buf.release();
         }
     }
 
-    // --- 5. Дифференциальный фаззинг сессионных пакетов (5 000 итераций) ---
+    // --- 5. Differential fuzz of the session packets (5,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг GSSessionStart: PaperLab Wire Framing vs Mod GSSessionFields Decoder [5 000 итераций]")
+    @DisplayName("GSSessionStart differential fuzz: PaperLab wire framing vs mod GSSessionFields decoder [5,000 iterations]")
     public void fuzzSessionStartFramingPaperLabVsMod() {
         for (int i = 0; i < 5000; i++) {
             final int typeIndex = rng.nextInt(2);
@@ -290,22 +290,22 @@ public class CPlayDifferentialFuzzTest {
             // 3. GSSessionFields.read:
             final int fieldCount = buf.readInt();
             final int expectedFields = (typeIndex == 0) ? 7 : 9;
-            assertEquals(expectedFields, fieldCount, "Для типа " + typeIndex + " ожидается " + expectedFields + " полей");
+            assertEquals(expectedFields, fieldCount, "type " + typeIndex + " is expected to carry " + expectedFields + " fields");
 
             final Set<String> observedFieldNames = new HashSet<>();
             for (int f = 0; f < fieldCount; f++) {
                 final int sizeInBytes = buf.readInt();
-                assertTrue(sizeInBytes > 0, "Размер поля в байтах должен быть положительным");
+                assertTrue(sizeInBytes > 0, "the field size in bytes must be positive");
                 final int readerStart = buf.readerIndex();
 
                 final String fieldName = CPlayWire.readString(buf);
                 assertNotNull(fieldName);
                 assertFalse(fieldName.isEmpty());
-                assertTrue(observedFieldNames.add(fieldName), "Дублирующееся поле сессии: " + fieldName);
+                assertTrue(observedFieldNames.add(fieldName), "duplicate session field: " + fieldName);
 
                 final int bytesReadForName = buf.readerIndex() - readerStart;
                 final int remainingPayloadBytes = sizeInBytes - bytesReadForName;
-                assertTrue(remainingPayloadBytes >= 0, "sizeInBytes меньше чем длина имени поля");
+                assertTrue(remainingPayloadBytes >= 0, "sizeInBytes is smaller than the field name length");
 
                 switch (fieldName) {
                     case "assetUUID" -> {
@@ -345,17 +345,17 @@ public class CPlayDifferentialFuzzTest {
                 }
 
                 final int totalFieldBytesRead = buf.readerIndex() - readerStart;
-                assertEquals(sizeInBytes, totalFieldBytesRead, "Поле '" + fieldName + "' вычитано не полностью");
+                assertEquals(sizeInBytes, totalFieldBytesRead, "field '" + fieldName + "' was not fully consumed");
             }
 
-            assertEquals(0, buf.readableBytes(), "Пакет старта сессии должен быть вычитан полностью");
+            assertEquals(0, buf.readableBytes(), "the session start packet must be fully consumed");
             buf.release();
         }
     }
 
-    // --- 6. Дифференциальный фаззинг пакетов кэша игроков (20 000 итераций) ---
+    // --- 6. Differential fuzz of the player cache packets (20,000 iterations) ---
     @Test
-    @DisplayName("Дифференциальный фаззинг PlayerCache: PaperLab Wire vs Mod Wire [20 000 итераций]")
+    @DisplayName("PlayerCache differential fuzz: PaperLab wire vs mod wire [20,000 iterations]")
     public void fuzzPlayerCachePackets() throws Exception {
         for (int i = 0; i < 10_000; i++) {
             // GSPlayerCachePacket
@@ -381,7 +381,7 @@ public class CPlayDifferentialFuzzTest {
             final UUID addedUUID = UUID.randomUUID();
             final String addedName = generateRandomString(rng, 1, 16);
             final byte[] addedPacket = CPlayWire.encodePlayerCacheAdded(addedUUID, addedName);
-            // Считываем пакет плагина РЕАЛЬНЫМ классом мода GSPlayerCacheEntry через GSDecodeBuffer:
+            // Read the plugin's packet with the REAL mod class GSPlayerCacheEntry via GSDecodeBuffer:
             final ByteBuf aBuf = Unpooled.wrappedBuffer(addedPacket);
             assertEquals(CPlayProtocol.makePacketId(CPlayProtocol.CAPL_UID, CPlayProtocol.PACKET_CAPL_PLAYER_CACHE_ADDED), aBuf.readLong());
             final com.g4mesoft.util.GSDecodeBuffer aDec = com.g4mesoft.util.GSDecodeBuffer.wrap(aBuf);
@@ -395,28 +395,28 @@ public class CPlayDifferentialFuzzTest {
         }
     }
 
-    // --- 7. Фаззинг extractAssetPayloadOffset (50 000 итераций) ---
+    // --- 7. Fuzzing extractAssetPayloadOffset (50,000 iterations) ---
     @Test
-    @DisplayName("Фаззинг extractAssetPayloadOffset на граничных и повреждённых заголовках [50 000 итераций]")
+    @DisplayName("extractAssetPayloadOffset fuzz on boundary and corrupted headers [50,000 iterations]")
     public void fuzzExtractAssetPayloadOffsetRobustness() {
         for (int i = 0; i < LARGE_FUZZ_ITERATIONS; i++) {
             final int len = rng.nextInt(64);
             final byte[] randomBytes = new byte[len];
             rng.nextBytes(randomBytes);
 
-            // Метод обязан ВСЕГДА возвращать валидное целое >= 0 без падений по исключению
+            // The method must ALWAYS return a valid integer >= 0 without throwing
             final int offset = CPlayWire.extractAssetPayloadOffset(randomBytes);
             assertTrue(offset >= 0);
             assertTrue(offset <= len);
         }
     }
 
-    // --- 8. Мутационный фаззинг сетевого потока (50 000 итераций) ---
+    // --- 8. Wire mutation fuzz (50,000 iterations) ---
     @Test
-    @DisplayName("Мутационный фаззинг сетевого потока: проверка защиты от битых байтов, обрезанных пакетов и переполнений [50 000 итераций]")
+    @DisplayName("Wire mutation fuzz: resistance to corrupt bytes, truncated packets and overflows [50,000 iterations]")
     public void fuzzMutationalRobustness() {
         for (int i = 0; i < LARGE_FUZZ_ITERATIONS; i++) {
-            // Создаём валидный пакет создания ассета
+            // Build a valid asset creation packet
             final ByteBuf validBuf = Unpooled.buffer();
             CPlayWire.writeString(validBuf, "ValidName" + (i % 100));
             validBuf.writeByte(rng.nextInt(2));
@@ -427,37 +427,37 @@ public class CPlayDifferentialFuzzTest {
             validBuf.readBytes(validBytes);
             validBuf.release();
 
-            // Применяем мутацию:
+            // Apply the mutation:
             final int mutationType = rng.nextInt(4);
             final byte[] mutatedBytes;
 
             if (mutationType == 0) {
-                // Обрезаем пакет на случайном байте (тест на нехватку байтов / buffer underflow)
+                // Truncate the packet at a random byte (tests buffer underflow)
                 final int cutLen = rng.nextInt(validBytes.length);
                 mutatedBytes = new byte[cutLen];
                 System.arraycopy(validBytes, 0, mutatedBytes, 0, cutLen);
             } else if (mutationType == 1) {
-                // Мутируем случайные байты в потоке (тест на битые данные)
+                // Mutate random bytes in the stream (tests corrupt data)
                 mutatedBytes = validBytes.clone();
                 final int flips = 1 + rng.nextInt(4);
                 for (int f = 0; f < flips; f++) {
                     mutatedBytes[rng.nextInt(mutatedBytes.length)] = (byte) rng.nextInt(256);
                 }
             } else if (mutationType == 2) {
-                // Вставляем мусорные байты в произвольное место
+                // Insert junk bytes at an arbitrary offset
                 final int insertLen = rng.nextInt(40);
                 mutatedBytes = new byte[validBytes.length + insertLen];
                 rng.nextBytes(mutatedBytes);
             } else {
-                // Переполнение VarInt: последовательность 0x80..0x80 (более 5 байт с установленным MSB)
+                // VarInt overflow: a run of 0x80..0x80 (more than 5 bytes with the MSB set)
                 mutatedBytes = new byte[] {(byte)0x80, (byte)0x80, (byte)0x80, (byte)0x80, (byte)0x80, (byte)0x01};
             }
 
             final ByteBuf mutBuf = Unpooled.wrappedBuffer(mutatedBytes);
             try {
-                // Пытаемся декодировать — парсер обязан либо завершиться штатно,
-                // либо выбросить контролируемое исключение (IllegalArgumentException, IndexOutOfBoundsException).
-                // Никаких зависаний, OOM или неперехваченных ошибок.
+                // Try to decode — the parser must either finish normally or throw a controlled
+                // exception (IllegalArgumentException, IndexOutOfBoundsException). No hangs, no
+                // OOM, no uncaught errors.
                 final String name = CPlayWire.readString(mutBuf);
                 if (mutBuf.isReadable()) {
                     final int t = mutBuf.readByte() & 0xFF;
@@ -472,7 +472,7 @@ public class CPlayDifferentialFuzzTest {
                     }
                 }
             } catch (final IndexOutOfBoundsException | IllegalArgumentException expectedSafeFailure) {
-                // Безопасное отклонение некорректного пакета
+                // Safe rejection of a malformed packet
             } finally {
                 mutBuf.release();
             }
