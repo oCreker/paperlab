@@ -70,6 +70,7 @@ sourceSets {
             java.srcDir(vendorSources)
         } else {
             java.exclude("paperlab/cplay/protocol/CPlayDifferentialFuzzTest.java")
+            java.exclude("paperlab/cplay/protocol/CPlaySequenceDifferentialTest.java")
         }
         if (!vendorJars) {
             java.exclude("paperlab/servux/ServuxHudDifferentialTest.java")

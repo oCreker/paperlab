@@ -314,14 +314,21 @@ public final class CPlayWire {
         }
     }
 
-    public static byte[] encodeDefaultAssetFile(final CPlayAssetInfo info) {
-        final ByteBuf buf = Unpooled.buffer();
-        // GSAssetFileHeader: version 0x81 (0x80 | 1)
+    /**
+     * GSAssetFileHeader: version 0x81 (0x80 | 1), type, created timestamp, author, and an
+     * optional player cache entry we never send.
+     */
+    public static void writeAssetFileHeader(final ByteBuf buf, final CPlayAssetInfo info) {
         buf.writeByte((byte) (0x80 | 1));
         buf.writeByte((byte) info.getTypeIndex());
         buf.writeLong(info.getCreatedTimestamp());
         writeUUID(buf, info.getCreatedByUUID());
-        buf.writeBoolean(false); // no player cache entry
+        buf.writeBoolean(false);
+    }
+
+    public static byte[] encodeDefaultAssetFile(final CPlayAssetInfo info) {
+        final ByteBuf buf = Unpooled.buffer();
+        writeAssetFileHeader(buf, info);
 
         // Asset payload
         if (info.getTypeIndex() == 0) {

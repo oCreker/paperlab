@@ -19,6 +19,7 @@ import paperlab.core.CPlayBridge;
 import paperlab.cplay.CPlayService;
 import paperlab.cplay.model.CPlayAssetInfo;
 import paperlab.cplay.model.CPlayAssetType;
+import paperlab.cplay.protocol.CPlaySequenceWriter;
 import paperlab.cplay.protocol.CPlayWire;
 import paperlab.cplay.storage.CPlayAssetStore;
 
@@ -253,6 +254,15 @@ public final class CPlayPlaybackController {
             final byte[] data = serializeFrames(tickFrames);
             if (assetStore != null) {
                 assetStore.saveCaptureFrames(assetId, data);
+                // And the same recording in the mod's format, so the editor shows it. Two
+                // representations of one thing is not ideal, but playback reads the frames in
+                // tick order and the mod reads spans per channel; both are written here, at the
+                // one moment the recording is finished.
+                final CPlayAssetInfo info = assetStore.getAsset(assetId);
+                if (info != null) {
+                    assetStore.saveAssetData(assetId,
+                        CPlaySequenceWriter.encodeAssetFile(info, new ArrayList<>(tickFrames)));
+                }
             }
         }
 
