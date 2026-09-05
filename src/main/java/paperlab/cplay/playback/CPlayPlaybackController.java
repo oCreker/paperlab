@@ -19,6 +19,7 @@ import paperlab.core.CPlayBridge;
 import paperlab.cplay.CPlayService;
 import paperlab.cplay.model.CPlayAssetInfo;
 import paperlab.cplay.model.CPlayAssetType;
+import paperlab.cplay.protocol.CPlaySequenceReader;
 import paperlab.cplay.protocol.CPlaySequenceWriter;
 import paperlab.cplay.protocol.CPlayWire;
 import paperlab.cplay.storage.CPlayAssetStore;
@@ -39,8 +40,19 @@ public final class CPlayPlaybackController {
             return false;
         }
 
-        final byte[] data = assetStore.getCaptureFrames(info.getAssetUUID());
-        if (data == null || data.length < 8) {
+        // The sequence is the source of truth: it is what the mod's editor shows and edits.
+        // Playing the private frame file instead would mean anything changed in the editor
+        // silently did nothing.
+        List<List<CPlaySignalEvent>> frames =
+            CPlaySequenceReader.readAssetFile(assetStore.getAssetData(info.getAssetUUID()));
+        if (frames.isEmpty()) {
+            // Recordings made before sequences were written still only have their frames.
+            final byte[] legacy = assetStore.getCaptureFrames(info.getAssetUUID());
+            if (legacy != null) {
+                frames = deserializeFrames(legacy);
+            }
+        }
+        if (frames.isEmpty()) {
             if (player != null) {
                 player.sendMessage("§cAsset contains no recorded signal data.");
             }
@@ -50,7 +62,7 @@ public final class CPlayPlaybackController {
         final SimplePlaybackStream stream = new SimplePlaybackStream(
             info.getAssetUUID(),
             new CPlayBlockRegion(-30000000, -64, -30000000, 30000000, 320, 30000000),
-            data,
+            frames,
             delay,
             repeatCount
         );
@@ -190,10 +202,12 @@ public final class CPlayPlaybackController {
         private int currentTick = 0;
         private int currentRepeat = 0;
 
-        SimplePlaybackStream(final UUID assetId, final CPlayBlockRegion region, final byte[] data, final int delay, final int repeatCount) {
+        SimplePlaybackStream(final UUID assetId, final CPlayBlockRegion region,
+                             final List<List<CPlaySignalEvent>> frames, final int delay,
+                             final int repeatCount) {
             this.assetId = assetId;
             this.region = region;
-            this.frames = deserializeFrames(data);
+            this.frames = frames;
             this.delay = delay;
             this.repeatCount = repeatCount;
         }

@@ -142,6 +142,30 @@ class CPlaySequenceDifferentialTest {
     }
 
     @Test
+    @DisplayName("What is written is what plays back: edges survive the round trip")
+    void roundTrip() {
+        final BlockPos a = new BlockPos(3, 64, 3);
+        final BlockPos b = new BlockPos(4, 64, 3);
+
+        final List<List<CPlaySignalEvent>> frames = new ArrayList<>();
+        frames.add(List.of(edge(CPlaySignalEdge.RISING_EDGE, a, 0)));
+        frames.add(List.of(edge(CPlaySignalEdge.RISING_EDGE, b, 0)));
+        frames.add(List.of(edge(CPlaySignalEdge.FALLING_EDGE, a, 0)));
+        frames.add(List.of(edge(CPlaySignalEdge.FALLING_EDGE, b, 0)));
+
+        final List<List<CPlaySignalEvent>> back = CPlaySequenceReader.readAssetFile(
+            CPlaySequenceWriter.encodeAssetFile(info("round"), frames));
+
+        assertEquals(4, back.size(), "the recording keeps its length");
+        assertEquals(1, back.get(0).size());
+        assertEquals(CPlaySignalEdge.RISING_EDGE, back.get(0).get(0).getEdge());
+        assertEquals(a, back.get(0).get(0).getPos());
+        assertEquals(CPlaySignalEdge.FALLING_EDGE, back.get(2).get(0).getEdge());
+        assertEquals(a, back.get(2).get(0).getPos());
+        assertEquals(b, back.get(3).get(0).getPos());
+    }
+
+    @Test
     @DisplayName("Randomised recordings always read back [2,000 iterations]")
     void fuzz() throws Exception {
         final Random rng = new Random(1234L);
