@@ -1,40 +1,42 @@
-# История изменений
+# Changelog
 
-Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).
-Релизов пока не было; ниже — что уже есть в `master`.
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+No releases yet; below is what is already in `master`.
 
-## Не выпущено
+## Unreleased
 
-### Добавлено
-- Порт разметки Carpet (`paperlab.text.Msg`): вывод команд, правил и логгеров теперь
-  один в один как в моде — те же заголовки, кнопки и цвета.
-- Метки правил и `/carpet list <метка>`, `/carpet list defaults`.
-- Логгеры `item`, `microtiming`, `movement` в духе Carpet TIS Addition.
-- Правила `microTiming` и `perWorldTick`.
-- Канал `servux:tweaks` — предпросмотр инвентарей для Tweakeroo.
-- Серверная часть протокола Capture & Playback: `/capture`, `/playback`, `/cplay`.
-- Дифференциальные тесты: наши пакеты разбираются настоящим кодом клиентских модов.
-- Документация: команды, правила, права, клиентские моды, устройство.
+### Added
+- Port of Carpet's markup (`paperlab.text.Msg`): command, rule and logger output now
+  matches the mod exactly — same headers, buttons and colours.
+- Rule categories, `/carpet list <category>` and `/carpet list defaults`.
+- `item`, `microtiming` and `movement` loggers in the spirit of Carpet TIS Addition.
+- `microTiming` and `perWorldTick` rules.
+- `servux:tweaks` channel — inventory preview for Tweakeroo.
+- Server side of the Capture & Playback protocol: `/capture`, `/playback`, `/cplay`.
+- Differential tests: our packets are decoded by the client mods' real code.
+- Documentation in English and Russian: commands, rules, permissions, client mods,
+  architecture.
 
-### Исправлено
-- **TPS считался неправильно.** Стоял `Bukkit.getTPS()[0]` — скользящее среднее за
-  минуту, инертное и не совпадающее с тем, что показывает Carpet. Теперь мгновенное
-  `1000 / max(целевой mspt, реальный mspt)` с учётом заморозки и спринта `/tick`.
-- **Канал Capture & Playback был открыт всем.** Игрок с модом мог создавать и
-  импортировать композиции — то есть писать файлы на сервер, — ни разу не получив
-  `paperlab.cplay`. Право проверяется на входе в канал.
-- `paperlab.cplay.admin` не существовал как право: нигде не регистрировался, и
-  админского обхода фактически не было. Заменён на `paperlab.cplay.manage`.
-- Варианты `hardcodeTNTangle` не совпадали с печатаемым значением, из-за чего в
-  список кнопок добавлялся дубль.
-- `/log` из консоли отвечает `For players only`, а не исчезает из дерева команд.
+### Fixed
+- **TPS was computed wrongly.** It used `Bukkit.getTPS()[0]` — a one-minute rolling
+  average, sluggish and different from what Carpet shows. Now the instantaneous
+  `1000 / max(target mspt, actual mspt)`, accounting for `/tick` freeze and sprint.
+- **The Capture & Playback channel was open to everyone.** A player with the mod could
+  create and import compositions — that is, write files to the server — without ever
+  being granted `paperlab.cplay`. The permission is now checked at the channel entry.
+- `paperlab.cplay.admin` did not exist as a permission: it was never registered, so
+  there was effectively no admin override. Replaced with `paperlab.cplay.manage`.
+- `hardcodeTNTangle` options did not match the printed value, so a duplicate button was
+  appended to the list.
+- `/log` from the console answers `For players only` instead of vanishing from the
+  command tree.
 
-### Убрано
-- Чужие jar-ы модов и копии исходников g4mespeed. У g4mespeed лицензия GPL-2.0,
-  несовместимая с нашей GPL-3.0. Дифференциальные тесты остались, но файлы теперь
-  кладутся в `libs/` вручную, каталог в `.gitignore`.
+### Removed
+- Third-party mod jars and copies of g4mespeed sources. g4mespeed is GPL-2.0, which is
+  incompatible with our GPL-3.0. The differential tests remain, but the files are now
+  placed in `libs/` by hand, and the directory is in `.gitignore`.
 
-### Лицензии
-- `THIRD-PARTY.md`: полная сверка. Из Carpet (MIT) взято выражение — разметка и
-  тексты команд; уведомление об авторстве добавлено. Остальные протоколы
-  реализованы заново, чужого кода в них нет.
+### Licensing
+- `THIRD-PARTY.md`: full audit. Expression was taken from Carpet (MIT) — the markup and
+  command text; the attribution notice has been added. The other protocols are
+  reimplemented and contain none of their code.

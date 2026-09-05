@@ -1,40 +1,40 @@
-# Чужая работа в PaperLab
+# Third-party work in PaperLab
 
-Здесь перечислено всё, что мы взяли у других проектов, и на каких условиях.
-Список полный: если проекта тут нет, значит из него не взято ничего.
+Everything taken from other projects, and the terms it comes under. The list is
+complete: if a project is not here, nothing was taken from it.
 
-Разделение простое и оно важнее, чем кажется:
+The distinction below matters more than it looks:
 
-* **Формат** — имена каналов, номера пакетов, порядок полей, имена тегов NBT. Это
-  интерфейс: без совпадения байт в байт клиентский мод просто не заработает. Такие
-  совпадения неизбежны и лицензией исходников не покрываются — мы писали свой код,
-  глядя на формат, а не копируя реализацию.
-* **Выражение** — конкретные строки, тексты сообщений, структура алгоритма. Вот это
-  и есть чужая работа, и она требует соблюдения условий.
+* **Format** — channel names, packet ids, field order, NBT tag names. This is an
+  interface: without a byte-for-byte match the client mod simply does not work. Such
+  overlap is unavoidable and is not covered by the source licence — we wrote our own code
+  against the format, not by copying an implementation.
+* **Expression** — specific strings, message text, the shape of an algorithm. That is
+  someone else's work, and its terms apply.
 
 ---
 
-## Выражение: откуда взят код
+## Expression: where code came from
 
 ### Carpet Mod — MIT
 
-Автор: **gnembon**, <https://github.com/gnembon/fabric-carpet>
+Author: **gnembon**, <https://github.com/gnembon/fabric-carpet>
 
-Взято:
+Taken:
 
-* мини-язык разметки `carpet.utils.Messenger` — таблица кодов стиля, алгоритм
-  разбора поля, тепловая шкала, цвета категорий мобов. Портирован на Adventure
-  в [`paperlab.text.Msg`](src/main/java/paperlab/text/Msg.java);
-* тексты и раскладка команд: `/carpet` и его экраны правил
+* the `carpet.utils.Messenger` markup mini-language — style code table, field parsing,
+  the heatmap scale, mob category colours. Ported to Adventure in
+  [`paperlab.text.Msg`](src/main/java/paperlab/text/Msg.java);
+* command text and layout: `/carpet` and its rule screens
   ([`RuleCommands`](src/main/java/paperlab/command/RuleCommands.java)), `/log`
-  ([`LabLogCommand`](src/main/java/paperlab/command/LabLogCommand.java)), краткая
-  строка счётчика ([`LabCounters`](src/main/java/paperlab/counter/LabCounters.java));
-* грамматика команды `/player` — имена и порядок аргументов (в репозитории ядра).
+  ([`LabLogCommand`](src/main/java/paperlab/command/LabLogCommand.java)), the counter
+  summary line ([`LabCounters`](src/main/java/paperlab/counter/LabCounters.java));
+* the `/player` command grammar — argument names and order (in the core repository).
 
-Это сделано намеренно и является целью, а не побочным эффектом: человек, пришедший
-с Carpet, не должен гадать, что здесь значит другой оттенок или другой отступ.
+This is deliberate and is the goal, not a side effect: someone arriving from Carpet
+should not have to guess what a different shade or a different indent means here.
 
-MIT требует сохранять уведомление об авторстве. Оно приведено полностью:
+MIT requires the copyright notice to be preserved. In full:
 
 ```
 MIT License
@@ -59,60 +59,60 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-MIT совместима с GPL-3.0: код можно включать в наш проект, сохраняя это уведомление.
+MIT is compatible with GPL-3.0: the code may be included provided this notice stays.
 
 ---
 
-## Формат: что реализовано заново по протоколу
+## Format: reimplemented from the protocol
 
-Ни строки чужого кода. Совпадают только имена каналов, номера пакетов и имена полей —
-без этого клиент не поймёт сервер.
+Not a line of anyone else's code. Only channel names, packet ids and field names
+coincide — without that the client cannot understand the server.
 
-| Проект | Лицензия | Что от него в нашем коде |
+| Project | Licence | What of it is in our code |
 |---|---|---|
-| [Servux](https://github.com/sakura-ryoko/servux) | LGPL-3.0 | каналы `servux:hud_metadata`, `structures`, `litematics`, `entity_data` |
-| [malilib](https://github.com/maruohon/malilib) | LGPL-3.0 | обрамление пакетов, разрезание больших ответов |
-| [MiniHUD](https://github.com/maruohon/minihud) | LGPL-3.0 | имена логгеров HUD, поля мобкапов и погоды |
-| [Litematica](https://github.com/maruohon/litematica) | LGPL-3.0 | формат схематик: теги NBT, палитра, битмассив, подрегионы |
-| [ChunkDebug](https://github.com/senseiwells/ChunkDebug) | MIT | каналы и формат карты чанков |
-| [Capture & Playback / G4mespeed](https://github.com/G4me4u/g4mespeed) | **GPL-2.0** | канал `minecraft:mod/g4mespeed`, склейка id пакета, формат BlockPos |
+| [Servux](https://github.com/sakura-ryoko/servux) | LGPL-3.0 | the `servux:hud_metadata`, `structures`, `litematics`, `entity_data` channels |
+| [malilib](https://github.com/maruohon/malilib) | LGPL-3.0 | packet framing, splitting of large responses |
+| [MiniHUD](https://github.com/maruohon/minihud) | LGPL-3.0 | HUD logger names, mobcap and weather fields |
+| [Litematica](https://github.com/maruohon/litematica) | LGPL-3.0 | schematic format: NBT tags, palette, bit array, subregions |
+| [ChunkDebug](https://github.com/senseiwells/ChunkDebug) | MIT | chunk map channels and format |
+| [Capture & Playback / G4mespeed](https://github.com/G4me4u/g4mespeed) | **GPL-2.0** | the `minecraft:mod/g4mespeed` channel, packet id composition, BlockPos layout |
 
-**Про GPL-2.0 отдельно.** GPL-2.0 без оговорки «or later» несовместима с нашей
-GPL-3.0: смешивать код нельзя. Поэтому в `paperlab.cplay` нет ни строки из g4mespeed —
-только протокол. Совпадают шесть строк цикла varint и три константы битовых масок,
-но это единственный способ записать этот формат, и тот же цикл дословно лежит в самом
-Minecraft.
+**On GPL-2.0 specifically.** GPL-2.0 without an "or later" clause is incompatible with
+our GPL-3.0: the code cannot be mixed. So `paperlab.cplay` contains no line from
+g4mespeed — only the protocol. Six lines of the varint loop and three bit-mask constants
+coincide, but that is the only way to write this format, and the same loop sits verbatim
+in Minecraft itself.
 
-Раньше в репозитории лежали шесть файлов g4mespeed, скопированных дословно, — их
-использовали дифференциальные тесты. Они удалены, история переписана. Тесты остались,
-но чужие файлы теперь кладутся в `libs/` вручную, см. README.
+The repository used to contain six files copied verbatim from g4mespeed, used by the
+differential tests. They have been removed and the history rewritten. The tests remain,
+but third-party files are now placed in `libs/` by hand — see the README.
 
 ---
 
-## Идеи без кода
+## Ideas without code
 
-Взята постановка задачи, не реализация. Проверено: общих строк — ноль.
+The problem statement was adopted, not the implementation. Verified: zero shared strings.
 
-| Проект | Лицензия | Что переняли |
+| Project | Licence | What was adopted |
 |---|---|---|
-| [Carpet TIS Addition](https://github.com/TISUnion/Carpet-TIS-Addition) | LGPL-3.0 | сама мысль логгеров `microtiming`, `item`, `movement` и разметки блоков красителем |
-| [Redstone Multimeter](https://github.com/SpaceWalkerRS/redstone-multimeter-fabric) | MIT | пока ничего: RSMM не реализован |
+| [Carpet TIS Addition](https://github.com/TISUnion/Carpet-TIS-Addition) | LGPL-3.0 | the idea of the `microtiming`, `item` and `movement` loggers and of marking blocks with dye |
+| [Redstone Multimeter](https://github.com/SpaceWalkerRS/redstone-multimeter-fabric) | MIT | nothing yet: RSMM is not implemented |
 
 ---
 
-## Чего мы не трогали
+## What was not touched
 
-В подборке исходников, по которым велось исследование, есть проекты **без файла
-лицензии**: два серверных счётчика воронок, mcbenchmark и один из форков Servux.
-Без лицензии код использовать нельзя вообще — по умолчанию все права сохранены за
-автором. Мы из них ничего не брали, и это проверено сравнением: общих строк ноль
-(четыре совпадения с форком Servux — это имя канала и имена полей протокола, те же,
-что и у оригинального Servux).
+The research source collection includes projects **with no licence file**: two
+server-side hopper counters, mcbenchmark, and one Servux fork. Without a licence, code
+cannot be used at all — by default all rights stay with the author. Nothing was taken
+from them, and that was verified by comparison: zero shared strings (the four matches
+against the Servux fork are a channel name and protocol field names, the same ones the
+original Servux uses).
 
 ---
 
-## Наша лицензия
+## Our licence
 
-Сам PaperLab под **GPL-3.0** — см. [LICENSE.md](LICENSE.md). Она унаследована от
-серверных внутренностей Paper, против которых мы компилируемся, а те получили её от
-Spigot, Bukkit и CraftBukkit.
+PaperLab itself is **GPL-3.0** — see [LICENSE.md](LICENSE.md). It is inherited from the
+Paper server internals we compile against, which in turn got it from Spigot, Bukkit and
+CraftBukkit.

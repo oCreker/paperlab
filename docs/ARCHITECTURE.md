@@ -1,132 +1,134 @@
-# Устройство
+# Architecture
 
-## Почему две половины
+## Why two halves
 
-Технически всё можно было сделать в форке ядра: ядро умеет всё, что умеет плагин,
-обратное неверно. Так что деление — решение не про возможности, а про цену владения.
+Technically all of it could live in the core fork: the core can do everything a plugin
+can, and not the other way round. So the split is a decision about cost of ownership,
+not about capability.
 
-**Патч оплачивается при каждом обновлении Paper.** Патчи накладываются на
-декомпилированные исходники Mojang. Вышел 26.3, апстрим тронул `ChunkMap` или
-`NaturalSpawner` — патч надо переносить руками, разбирая конфликты в чужом коде.
-С 67 строками это вечер. С 6600 — это уже не форк, а вторая работа, и проект тихо
-умирает на первом же обновлении. Плагин при этом переживает обновление Paper без
-единой правки.
+**A patch is paid for on every Paper update.** Patches are applied to decompiled Mojang
+sources. When 26.3 arrives and upstream has touched `ChunkMap` or `NaturalSpawner`, the
+patch has to be carried across by hand, resolving conflicts in someone else's code. At
+67 lines that is an evening. At 6600 it is a second job, and the project quietly dies at
+the first update. The plugin, meanwhile, survives a Paper update untouched.
 
-**Цикл разработки.** Правка в плагине — пересборка секунды. Правка в ядре —
-`applyPatches`, полная компиляция, `createPaperclipJar`, минуты. Протоколы ChunkDebug
-и Servux восстанавливались методом «дамп → догадка → проверка», это сотни итераций.
-В ядре они бы просто не были дописаны.
+**Development cycle.** A change in the plugin rebuilds in seconds. A change in the core
+means `applyPatches`, a full compile, `createPaperclipJar` — minutes. The ChunkDebug and
+Servux protocols were recovered by dump, guess, check: hundreds of iterations. In the
+core they would simply never have been finished.
 
-**Радиус поражения.** Баг в плагине — строчка в логе, плагин выключается, сервер
-живёт. Баг в ядре — упавший сервер или испорченный мир. И заметьте, что именно
-оказалось в плагине: разбор чужих NBT-пакетов от клиента, парсинг схематик, запись
-блоков в мир. Это ровно тот код, где ошибки вероятнее всего, и ему место снаружи ядра.
+**Blast radius.** A bug in the plugin is a line in the log; the plugin disables itself
+and the server lives. A bug in the core is a dead server or a corrupted world. And note
+what ended up in the plugin: parsing untrusted NBT from clients, parsing schematics,
+writing blocks into the world. That is exactly the code most likely to have bugs, and it
+belongs outside the core.
 
-**Контрольный прогон.** Плагин работает на чистом Paper — можно провести один и тот
-же замер с нашим ядром и без него. Если бы всё лежало в ядре, сравнивать было бы
-не с чем: любое расхождение пришлось бы списывать на «ну, у нас же форк».
+**Control runs.** The plugin works on stock Paper, so the same measurement can be taken
+with our core and without it. If everything lived in the core there would be nothing to
+compare against — any discrepancy would have to be written off as "well, we do run a
+fork".
 
-Отсюда правило, по которому разводится код: **в патч попадает только то, что плагином
-недостижимо физически.**
+Hence the rule the code is split by: **only what a plugin physically cannot do goes into
+the patch.**
 
 ---
 
-## Что в ядре и почему именно оно
+## What is in the core, and why exactly that
 
-Ветка `lab`, четыре патча. Основной — `0035-Paper-Lab-hooks.patch`, 12 файлов,
-67 добавленных строк.
+Branch `lab`, four patches. The main one is `0035-Paper-Lab-hooks.patch` — 12 files,
+67 added lines.
 
-| Файл upstream | Зачем тронут |
+| Upstream file | Why it is touched |
 |---|---|
-| `ChunkMap` (4 точки) | наблюдатель вне переписи мобкапа, вне backoff, не расширяет область спавна, не грузит чанки |
-| `RegionizedPlayerChunkLoader` | наблюдатель не делает ticking ни одного чанка |
-| `ActivationRange` | наблюдатель не будит мобов (EAR) |
-| `LivingEntity.canBeSeenByAnyone` | мобы не выбирают наблюдателя целью |
-| `NaturalSpawner` | наблюдатель не режет бюджет чанка + 4 метки трассы спавна |
-| `PlayerList.remove` | снять режим наблюдателя при выходе |
-| `MinecraftServer.tickChildren` | `doTick()` бота в фазе соединений |
-| `Commands` | регистрация `/player` и узлов в ванильный `/tick` |
-| `FillCommand`, `SetBlockCommand`, `CloneCommands` | правило `fillUpdates` |
-| `ServerDebugSubscribers` | отладочные подписки по праву, а не только оператору |
+| `ChunkMap` (4 points) | observer excluded from the mobcap census and backoff, does not widen the spawn area, loads no chunks |
+| `RegionizedPlayerChunkLoader` | observer makes no chunk tick |
+| `ActivationRange` | observer does not wake mobs (EAR) |
+| `LivingEntity.canBeSeenByAnyone` | mobs do not target the observer |
+| `NaturalSpawner` | observer does not consume the chunk budget + 4 spawn-trace marks |
+| `PlayerList.remove` | clear observer mode on quit |
+| `MinecraftServer.tickChildren` | bot `doTick()` in the connection phase |
+| `Commands` | registers `/player` and the nodes added to vanilla `/tick` |
+| `FillCommand`, `SetBlockCommand`, `CloneCommands` | the `fillUpdates` rule |
+| `ServerDebugSubscribers` | debug subscriptions by permission, not by OP alone |
 
-Плюс три патча поменьше: хуки Capture & Playback, хуки логгеров `item` / `movement` /
-`microtiming` и потиковый режим по мирам.
+Plus three smaller patches: Capture & Playback hooks, hooks for the `item` / `movement` /
+`microtiming` loggers, and per-world tick control.
 
-Каждый из этих хуков стоит там, где плагин не достаёт:
+Each hook sits where a plugin cannot reach:
 
-* **наблюдатель** — решения принимаются внутри системы чанков Moonrise и внутри
-  цикла спавна; событий Bukkit там нет;
-* **трасса спавна** — метки стоят внутри цикла `NaturalSpawner`, снаружи он
-  непрозрачен: снаружи видно только «моб появился» или «не появился»;
-* **боты** — `doTick()` обязан вызываться в фазе соединений, а планировщик плагина
-  работает в начале `tickChildren`, до фазы уровней;
-* **правила команд** — правки самих ванильных команд.
+* **observer** — the decisions are made inside Moonrise's chunk system and inside the
+  spawn loop; there are no Bukkit events there;
+* **spawn trace** — the marks sit inside the `NaturalSpawner` loop, which is opaque from
+  outside: all you see from there is "a mob appeared" or "it did not";
+* **bots** — `doTick()` has to run in the connection phase, while a plugin's scheduler
+  runs at the start of `tickChildren`, before the level phase;
+* **command rules** — edits to the vanilla commands themselves.
 
 ---
 
-## Что в плагине
+## What is in the plugin
 
 ```
 paperlab/
-├── command/     регистрация команд, права, правила
-├── rules/       движок правил и их сохранение
-├── log/         подписки в таб-лист, логгеры, мост к TAB
-│   ├── item/          жизненный цикл предметов
-│   ├── movement/      раскладка расчёта движения
-│   └── microtiming/   микротайминги редстоуна
-├── counter/     счётчики воронок
-├── ghost/       клиентская половина режима наблюдателя
-├── spawn/       представление трассы спавна
-├── mobcap/      чтение локальных мобкапов
-├── chunkmap/    протокол ChunkDebug
-├── servux/      каналы Servux: HUD, структуры, схематики, NBT, tweaks
-├── cplay/       протокол Capture & Playback
-├── core/        мост к ядру: определяет, есть ли оно
-└── text/        порт разметки Carpet
+├── command/     command registration, permissions, rules
+├── rules/       rule engine and persistence
+├── log/         tab-list subscriptions, loggers, the TAB bridge
+│   ├── item/          item lifecycle
+│   ├── movement/      movement calculation breakdown
+│   └── microtiming/   redstone microtiming
+├── counter/     hopper counters
+├── ghost/       plugin side of observer mode
+├── spawn/       spawn trace presentation
+├── mobcap/      reading local mobcaps
+├── chunkmap/    the ChunkDebug protocol
+├── servux/      Servux channels: HUD, structures, schematics, NBT, tweaks
+├── cplay/       the Capture & Playback protocol
+├── core/        bridge to the core: detects whether it is present
+└── text/        port of Carpet's markup
 ```
 
-`core/CoreBridge` — единственное место, где плагин спрашивает «а есть ли наше ядро».
-Всё остальное спрашивает у него, а не проверяет само. Благодаря этому плагин честно
-работает на чистом Paper и честно об этом сообщает, вместо того чтобы падать или
-молча делать вид.
+`core/CoreBridge` is the single place that asks "is our core here?". Everything else asks
+it rather than checking for itself. That is what lets the plugin work honestly on stock
+Paper and say so, instead of crashing or quietly pretending.
 
 ---
 
-## Уроки протоколов
+## Protocol lessons
 
-Три протокола восстанавливались по исходникам модов, и каждый обошёлся в отдельный
-разбор. Общий вывод один, и он стоит того, чтобы его записать:
+Three protocols were recovered from mod sources, and each cost a separate investigation.
+The conclusion is the same one every time, and it is worth writing down:
 
-> **Сверять формат надо с кодом клиента, а не с серверной реализацией мода.**
-> Они расходятся молча.
+> **Verify the wire format against the client's code, not against the mod's own server
+> implementation.** They diverge silently.
 
-Конкретно:
+Specifically:
 
-* **ChunkDebug.** `hello` в протоколе только серверный — клиент его не шлёт никогда,
-  а мы его ждали. `start_watching` несёт **список** измерений, а не одно. Канал
-  обновления называется `refresh`, хотя класс — `ChunkRefreshPayload`.
-* **Servux и malilib.** Servux пишет `int length + gzip`, а malilib читает сетевой
-  NBT. Выяснилось только по шестнадцатеричному дампу настоящего пакета Litematica:
-  `ff ff ff ff 0f | 0a | ...` — это `varint(-1)` и следом сетевой NBT.
-* **MiniHUD.** Клиент шлёт имя логгера как `.name()` перечисления (`MOB_CAPS`),
-  а разбирает ответ по сериализованному имени (`mob_caps`). Читаем без учёта
-  регистра, отвечаем строчными.
-* **Litematica.** Битмассив в схематике **спаннинг**: запись пересекает границу двух
-  `long`, в отличие от ванильного палитрового контейнера. Точка региона берётся из
-  подрегиона, а не из `Regions.<имя>.Position`. Поворот основного размещения на 90°
-  меняет ось отражения подрегиона.
+* **ChunkDebug.** `hello` is clientbound only — the client never sends it, and we were
+  waiting for one. `start_watching` carries a **list** of dimensions, not one. The
+  refresh channel is called `refresh` even though the class is `ChunkRefreshPayload`.
+* **Servux and malilib.** Servux writes `int length + gzip`; malilib reads network NBT.
+  It only became visible in a hex dump of a real Litematica packet:
+  `ff ff ff ff 0f | 0a | ...` — that is `varint(-1)` followed by network NBT.
+* **MiniHUD.** The client sends a logger name as the enum's `.name()` (`MOB_CAPS`) but
+  parses the response by its serialized name (`mob_caps`). We read case-insensitively and
+  answer in lowercase.
+* **Litematica.** The schematic bit array is **spanning**: an entry crosses the boundary
+  between two `long`s, unlike the vanilla palette container. The region origin comes from
+  the subregion, not from `Regions.<name>.Position`. Rotating the main placement by 90°
+  changes the subregion's mirror axis.
 
-Отсюда и дифференциальные тесты: они гоняют наши пакеты через настоящий декодер мода.
-Тест, сверяющий нас с нашими же ожиданиями, проверяет, что мы последовательны, а не
-что мы правы, — и все три раза выше он был бы зелёным.
+Hence the differential tests: they run our packets through the mod's real decoder. A test
+that checks us against our own expectations proves we are consistent, not that we are
+right — and it would have been green in all three cases above.
 
 ---
 
-## Порядок в тике
+## Tick ordering
 
-Плагин ведёт один общий тик, из которого дёргаются счётчики, HUD, карта чанков и
-каналы Servux. Отдельных планировщиков нет намеренно: несколько независимых таймеров
-на стенде, где меряют время, дают разъезжающиеся снимки одного и того же момента.
+The plugin runs one shared tick, from which counters, the HUD, the chunk map and the
+Servux channels are driven. There are deliberately no separate schedulers: several
+independent timers on a lab that measures time produce drifting snapshots of what should
+be one moment.
 
-HUD обновляется раз в секунду — как в Carpet. Карта чанков шлёт дельты, поэтому
-неподвижный игрок не создаёт трафика вовсе.
+The HUD refreshes once per second, as in Carpet. The chunk map sends deltas, so a
+stationary player generates no traffic at all.

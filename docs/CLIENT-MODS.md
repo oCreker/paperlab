@@ -1,104 +1,104 @@
-# Клиентские моды
+# Client mods
 
-Сервер полностью работает с **ванильным клиентом**. Ничего ставить не обязательно —
-все команды, счётчики, боты и таб-лист работают как есть.
+The server works fully with a **vanilla client**. Nothing has to be installed — commands,
+counters, bots and the tab list all work as they are.
 
-Но если у игрока стоит Fabric с модами, сервер отвечает им на их же каналах, и
-появляется то, чего ванильный клиент не умеет: карта чанков, оверлеи MiniHUD,
-вставка схематик без спама в чат.
+If a player runs Fabric with mods, the server answers them on their own channels, and
+things a vanilla client cannot do appear: the chunk map, MiniHUD overlays, schematic
+pasting without chat spam.
 
-**Серверные части написаны нами заново.** Настоящий Servux — фабричный мод и на Paper
-не запускается; клиенту же безразлично, кто отвечает на канале.
+**The server sides are written by us from scratch.** The real Servux is a Fabric mod and
+does not run on Paper; the client does not care who answers on a channel.
 
 ---
 
-## Что даёт какой мод
+## What each mod adds
 
-| Мод | Каналы | Что появляется | Право |
+| Mod | Channels | What appears | Permission |
 |---|---|---|---|
-| [ChunkDebug](https://modrinth.com/mod/chunkdebug) | `chunkdebug:*` | карта статусов чанков и тикетов, F6 | `paperlab.chunkmap` |
-| [MiniHUD](https://modrinth.com/mod/minihud) | `servux:hud_metadata`, `servux:structures`, `servux:entity_data` | TPS, мобкапы, рамки структур, NBT под прицелом | `paperlab.servux.*` |
-| [Litematica](https://modrinth.com/mod/litematica) | `servux:litematics` | **вставка схематик сервером** | `paperlab.servux.litematics` |
-| [Tweakeroo](https://modrinth.com/mod/tweakeroo) | `servux:tweaks` | предпросмотр инвентарей на расстоянии | `paperlab.servux.tweaks` |
-| [Capture & Playback](https://modrinth.com/mod/capture-playback) | `minecraft:mod/g4mespeed` | запись и воспроизведение редстоуновых сигналов | `paperlab.cplay` |
+| [ChunkDebug](https://modrinth.com/mod/chunkdebug) | `chunkdebug:*` | chunk status and ticket map, F6 | `paperlab.chunkmap` |
+| [MiniHUD](https://modrinth.com/mod/minihud) | `servux:hud_metadata`, `servux:structures`, `servux:entity_data` | TPS, mobcaps, structure boxes, NBT under the crosshair | `paperlab.servux.*` |
+| [Litematica](https://modrinth.com/mod/litematica) | `servux:litematics` | **server-side schematic pasting** | `paperlab.servux.litematics` |
+| [Tweakeroo](https://modrinth.com/mod/tweakeroo) | `servux:tweaks` | inventory preview at range | `paperlab.servux.tweaks` |
+| [Capture & Playback](https://modrinth.com/mod/capture-playback) | `minecraft:mod/g4mespeed` | recording and replaying redstone signals | `paperlab.cplay` |
 
-MiniHUD, Litematica и Tweakeroo требуют [malilib](https://modrinth.com/mod/malilib).
+MiniHUD, Litematica and Tweakeroo need [malilib](https://modrinth.com/mod/malilib).
 
 ---
 
-## Настройка на стороне клиента
+## Client-side setup
 
-### Litematica — вставка схематик
+### Litematica — schematic pasting
 
-Это, пожалуй, главное, ради чего стоит поставить моды: сервер ставит блоки сам,
-вместо тысяч строк `/setblock` в чате.
+Probably the main reason to install mods at all: the server places the blocks itself,
+instead of thousands of `/setblock` lines in chat.
 
-1. В настройках Litematica включить **`entityDataSync`**. Имя обманчивое: это общий
-   выключатель канала, на котором висит и вставка. По умолчанию он выключен, и это
-   первое, обо что все спотыкаются.
-2. **`pasteUsingServux`** включён по умолчанию, проверить на всякий случай.
-3. Вставка требует творческого режима и права `paperlab.servux.litematics`.
+1. Enable **`entityDataSync`** in Litematica's settings. The name is misleading: it is
+   the master switch for the channel that pasting also rides on. It is off by default,
+   and it is the first thing everyone trips over.
+2. **`pasteUsingServux`** is on by default; worth checking.
+3. Pasting requires creative mode and `paperlab.servux.litematics`.
 
-Поддерживаются повороты, отражения, подрегионы, режим замены и данные тайл-энтити.
+Rotations, mirroring, subregions, replace mode and block entity data are supported.
 
-**Блоки ставятся без побочных эффектов.** Litematica просит ставить с флагами `0x12`,
-но этого мало: `onPlace` всё равно вызывается, а у редстоуновой пыли это
-`updatePowerStrength` — она пересчитывает сигнал и перезаписывает собственное
-состояние. Схематика с горящей пылью вставала погашенной, и конструкция стартовала
-сама. Поэтому мы добавляем `UPDATE_SKIP_ON_PLACE`.
+**Blocks are placed without side effects.** Litematica asks for flags `0x12`, which is
+not enough: `onPlace` still runs, and for redstone dust that is `updatePowerStrength` —
+it recomputes the signal and overwrites the state it was given. A schematic with powered
+dust came out unpowered, and the contraption started itself. So we add
+`UPDATE_SKIP_ON_PLACE`.
 
 ### MiniHUD
 
-Включить `HUD data sync` в настройках. Дальше информация приходит сама.
+Enable `HUD data sync` in the settings; the data arrives on its own after that.
 
-**Мобкапы, которые показывает MiniHUD, — мировые.** На Paper с `per-player-mob-spawns`
-спавн гасит локальный кап каждого игрока, а мировая сумма справочная. Настоящий кап
-показывает `/log mobcaps`, и цифры законно расходятся. Это не рассинхрон и не ошибка,
-а разные величины.
+**The mobcaps MiniHUD shows are world-wide.** With `per-player-mob-spawns`, Paper's
+spawner is limited by each player's local cap, and the world total is only informative.
+The real cap is what `/log mobcaps` shows, and the two legitimately differ. This is not
+desync and not a bug — they are different quantities.
 
-**Отладочные рендеры** (пути мобов, обновления соседей, порядок редстоуна, POI, brain)
-в 26.2 работают через ванильный протокол подписок и Servux не требуют вовсе. Ваниль
-пускает к ним только операторов; право `paperlab.debugdata` — альтернатива, чтобы не
-выдавать OP ради оверлеев.
+**Debug renderers** (mob paths, neighbour updates, redstone order, POI, brain) do not
+need Servux at all: in 26.2 they go through vanilla's own subscription system. Vanilla
+admits only operators; the `paperlab.debugdata` permission is the alternative, so nobody
+has to be given OP for overlays.
 
 ### ChunkDebug
 
-Ничего настраивать не нужно, карта открывается по F6.
+Nothing to configure; the map opens on F6.
 
-Сервер шлёт **дельты**, а не полные снимки: пока стоишь на месте, трафика нет вовсе,
-при полёте идут сотни изменившихся чанков плюс сообщения о выгрузке.
+The server sends **deltas** rather than full snapshots: standing still produces no
+traffic at all, while flying sends a few hundred changed chunks plus unload messages.
 
 ### Capture & Playback
 
-Клиент синхронизируется сам, если у игрока есть право `paperlab.cplay`. Композиции
-хранятся на сервере, в `plugins/PaperLab/cplay/`.
+The client syncs on its own if the player holds `paperlab.cplay`. Compositions are stored
+server-side, in `plugins/PaperLab/cplay/`.
 
-Без права канал закрыт целиком — мод просто не увидит серверной части. Это намеренно:
-импорт композиции пишет файл на сервер.
+Without the permission the channel is closed entirely and the mod simply does not see a
+server side. That is deliberate: importing a composition writes a file to the server.
 
 ---
 
-## Если что-то не работает
+## When something does not work
 
-Первое, что стоит проверить, — **право**. Каналы закрываются молча: мод не получает
-ответа и ведёт себя так, будто сервер обычный. Это правильное поведение (сообщать
-всем подряд о существовании канала незачем), но диагностику усложняет.
+The first thing to check is the **permission**. Channels close silently: the mod gets no
+answer and behaves as if the server were ordinary. That is the right behaviour — there is
+no reason to advertise a channel to everyone — but it does make diagnosis harder.
 
 ```
 /carpet perms
 ```
 
-Покажет дерево и отметит, что есть у тебя.
+prints the tree and marks what you hold.
 
-Второе — **включён ли синхрон в самом моде**: `entityDataSync` у Litematica,
-`HUD data sync` у MiniHUD.
+Second: whether **sync is enabled in the mod itself** — `entityDataSync` for Litematica,
+`HUD data sync` for MiniHUD.
 
-Для разбора протокола на сервере есть подробный лог:
+For protocol work there is a verbose server log:
 
 ```
 -Dpaperlab.servux.debug=true
 ```
 
-Он печатает типы входящих и исходящих пакетов и, при разборе — шестнадцатеричный дамп.
-Именно им ловились расхождения обрамления: malilib читает сетевой NBT, а Servux пишет
-`int length + gzip`, и это выяснилось только по дампу настоящего пакета.
+It prints incoming and outgoing packet types and, while parsing, a hex dump. That is what
+caught the framing mismatches: malilib reads network NBT while Servux writes
+`int length + gzip`, and it only became visible in a dump of a real Litematica packet.

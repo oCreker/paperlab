@@ -1,102 +1,101 @@
-# Правила
+# Rules
 
 ```
-/carpet list                              все правила
-/carpet <правило>                         карточка: описание, метки, варианты
-/carpet <правило> <значение>              установить — до перезапуска
-/carpet setDefault <правило> <значение>   установить и запомнить
-/carpet removeDefault <правило>           забыть сохранённое
-/carpet list defaults                     что применится после перезапуска
+/carpet list                              every rule
+/carpet <rule>                            card: description, categories, options
+/carpet <rule> <value>                    set — until restart
+/carpet setDefault <rule> <value>         set and remember
+/carpet removeDefault <rule>              forget the saved value
+/carpet list defaults                     what applies after a restart
 ```
 
-## Почему установка не переживает перезапуск
+## Why a set does not survive a restart
 
-Это главное, что стоит понять про правила, и это сделано нарочно.
+This is the main thing to understand about rules, and it is deliberate.
 
-Правило меняет поведение мира. Забытое включённое правило не ломает сервер и ничем
-себя не выдаёт — он просто начинает врать: числа получаются правдоподобные и ни с чем
-не сопоставимые. Через неделю уже не вспомнить, при каком наборе правил снимался
-позавчерашний замер.
+A rule changes how the world behaves. A rule left on does not break the server and gives
+no sign of itself — the server simply starts lying: the numbers look plausible and are
+comparable to nothing. A week later nobody remembers which rules were on when the
+measurement two days ago was taken.
 
-Поэтому обычная установка живёт до перезапуска, и стенд всегда стартует в известном
-состоянии. Чтобы значение осталось, нужно сказать это отдельно — `setDefault`, и он
-пишет в `plugins/PaperLab/rules.conf`. Рядом с каждой установкой висит кнопка
-`[Change permanently?]`, так что это одно нажатие, а не наказание.
+So an ordinary set lives until restart, and the lab always starts in a known state. To
+keep a value you have to say so separately — `setDefault`, which writes to
+`plugins/PaperLab/rules.conf`. Every set prints a `[Change permanently?]` button next to
+it, so that is one click, not a punishment.
 
 ---
 
-## Список
+## The list
 
-| Правило | Ванильное | Метки | Ядро |
+| Rule | Vanilla | Categories | Core |
 |---|---|---|---|
-| [`fakePlayerNameSuffix`](#fakeplayernamesuffix) | `none` | bot, creative | да |
-| [`fillUpdates`](#fillupdates) | `true` | creative, command | да |
-| [`hardcodeTNTangle`](#hardcodetntangle) | `-1.0` | tnt, creative | нет |
-| [`microTiming`](#microtiming) | `false` | redstone, experimental | частично |
-| [`perWorldTick`](#perworldtick) | `false` | tick, experimental | да |
-| [`tickCommandCarpetfied`](#tickcommandcarpetfied) | `true` | command, experimental | да |
+| [`fakePlayerNameSuffix`](#fakeplayernamesuffix) | `none` | bot, creative | yes |
+| [`fillUpdates`](#fillupdates) | `true` | creative, command | yes |
+| [`hardcodeTNTangle`](#hardcodetntangle) | `-1.0` | tnt, creative | no |
+| [`microTiming`](#microtiming) | `false` | redstone, experimental | partial |
+| [`perWorldTick`](#perworldtick) | `false` | tick, experimental | yes |
+| [`tickCommandCarpetfied`](#tickcommandcarpetfied) | `true` | command, experimental | yes |
 
-Правило, которому нужно ядро, на чистом Paper показывается как `(needs our core)` и
-не устанавливается: читать его там некому, а тихо принять значение и ничего не сделать
-было бы хуже всего.
+A rule that needs the core shows as `(needs our core)` on stock Paper and refuses to be
+set: nothing there would read it, and quietly accepting a value while doing nothing
+would be the worst outcome.
 
 ---
 
 ### `fakePlayerNameSuffix`
 
-Суффикс к именам ботов. Варианты: `none`, `_bot`, `_fake`, `_afk`, или свой до
-8 символов.
+Suffix appended to bot names. Options: `none`, `_bot`, `_fake`, `_afk`, or your own up
+to 8 characters.
 
-Бот с именем живого игрока занимает его UUID, и сам игрок войти уже не может.
-С суффиксом имена расходятся, а **скин по-прежнему берётся по имени без суффикса** —
-бот выглядит как нужный игрок и никому не мешает.
+A bot named after a live player takes their UUID, and that player can no longer log in.
+A suffix makes the names diverge while **the skin is still fetched for the name without
+it** — the bot looks like the intended player and blocks nobody.
 
 ### `fillUpdates`
 
-Вызывают ли `/fill`, `/setblock` и `/clone` обновления соседей.
+Whether `/fill`, `/setblock` and `/clone` cause neighbour updates.
 
-`false` — блоки ставятся тихо: не срабатывают наблюдатели, не отваливаются факелы и
-репитеры, не запускается редстоун. Нужно, чтобы собрать конструкцию по шаблону и
-включить её один раз, а не смотреть, как она стартует сама по ходу заливки.
+`false` places blocks quietly: observers do not fire, torches and repeaters do not pop
+off, redstone does not start. Needed to assemble a contraption from a template and turn
+it on once, instead of watching it start itself midway through the fill.
 
 ### `hardcodeTNTangle`
 
-Фиксированный горизонтальный угол разлёта зажжённого динамита, в радианах.
-`-1` — ванильное случайное поведение, иначе от 0 до 2π.
+Fixed horizontal launch angle for primed TNT, in radians. `-1` is vanilla random
+behaviour; otherwise 0 to 2π.
 
-Ванильный TNT получает случайный угол, поэтому одна и та же пушка каждый раз стреляет
-чуть иначе и сравнивать прогоны нельзя. С фиксированным углом конструкция ведёт себя
-одинаково.
+Vanilla TNT gets a random angle, so the same cannon fires slightly differently every
+time and runs cannot be compared. With a fixed angle the contraption behaves identically.
 
-Ядро для него не нужно: правило применяется слушателем события при появлении
-сущности — конструктор уже отработал, но до первого тика скорость ещё никто не читал.
+No core needed: the rule is applied by an entity-spawn listener — the constructor has
+already run, but nothing has read the velocity before the first tick.
 
 ### `microTiming`
 
-Включает сбор микротаймингов редстоуна для `/log microtiming`.
+Enables redstone microtiming collection for `/log microtiming`.
 
-Логгер смотрит на компоненты, помеченные шерстью или маркерами красителей, и пишет
-порядок их срабатывания внутри тика. Идея та же, что у Carpet TIS Addition.
+The logger watches components marked with wool or dye and records the order in which
+they fire within a tick. Same idea as Carpet TIS Addition.
 
-Правило выключено по умолчанию не из осторожности, а потому что сбор стоит времени:
-на стенде, где меряют время, включённый по забывчивости сборщик — худшее, что может быть.
+It is off by default not out of caution but because collection costs time: on a lab that
+measures time, a collector left on by accident is the worst thing that can happen.
 
-На чистом Paper правило работает, но грубее: без хуков ядра логгер видит только то,
-что доходит до событий Bukkit, а порядок внутри тика и глубину вызовов — уже нет.
+On stock Paper the rule still works, but coarsely: without core hooks the logger only
+sees what reaches Bukkit events — not the in-tick order, not the call depth.
 
 ### `perWorldTick`
 
-Независимый тикрейт, заморозка и спринт для каждого мира.
+Independent tick rate, freeze and sprint per world.
 
-`true` — каждый мир тикает со своим `ServerLevelTickRateManager`, и `/tick freeze`
-в незере не останавливает овер. `false` — все миры синхронизированы с оверволдом,
-как в ваниле.
+`true` gives each world its own `ServerLevelTickRateManager`, so `/tick freeze` in the
+nether does not stop the overworld. `false` keeps every world synchronised with the
+overworld, as in vanilla.
 
-Полезно, когда в одном мире идёт долгий прогон, а в другом надо что-то построить.
+Useful when a long run is going in one world and something has to be built in another.
 
 ### `tickCommandCarpetfied`
 
-Доступны ли наши узлы `/tick toggle` и `/tick warp`.
+Whether our `/tick toggle` and `/tick warp` nodes are available.
 
-Выключение не убирает их из дерева команд, а делает недоступными — так же, как в
-Carpet. Остальные ветки `/tick` ванильные и правилу не подчиняются.
+Turning it off does not remove them from the command tree, it makes them unavailable —
+the same way Carpet does it. The other `/tick` branches are vanilla and ignore the rule.

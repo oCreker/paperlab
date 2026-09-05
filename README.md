@@ -1,57 +1,56 @@
 # PaperLab
 
-Инструментарий технического сервера Minecraft для исследования ферм — на **Paper 26.2**.
+Technical-server tooling for Minecraft farm research, on **Paper 26.2**.
 
-Это то, чем Carpet является для Fabric, но адаптированное под особенности Paper.
-Главная из них — **локальные мобкапы**: на Paper с `per-player-mob-spawns` спавн
-ограничивает каждого игрока отдельно, а не мир целиком. Ни в ваниле, ни в
-Fabric-модах такого нет, поэтому и инструмента, который это показывает, до сих пор
-не было.
+What Carpet is for Fabric, adapted to what makes Paper different. Chiefly
+**per-player mobcaps**: with `per-player-mob-spawns`, Paper caps every player
+separately instead of the world as a whole. Neither vanilla nor the Fabric mods have
+that, which is why no tool showed it until now.
 
-Проект состоит из двух половин. Здесь — **плагин**; рядом лежит
-[**форк ядра**](https://github.com/oCreker/paperlab-core), в котором всего 67 строк
-патча: только то, чего плагином сделать физически нельзя. Плагин запускается и на
-чистом Paper — это нужно для контрольных прогонов, — но часть инструментов там
-работает частично или не работает вовсе.
+Two halves. This is the **plugin**; the [**core fork**](https://github.com/oCreker/paperlab-core)
+lives next door and carries a 67-line patch — only what a plugin physically cannot do.
+The plugin also runs on stock Paper, which is what control runs need, though some
+tools there are partial or absent.
+
+[Русская версия](README.ru.md)
 
 ---
 
-## Документация
+## Documentation
 
 | | |
 |---|---|
-| [**Команды**](docs/COMMANDS.md) | полный справочник: синтаксис, аргументы, что делает |
-| [**Правила**](docs/RULES.md) | `/carpet`, шесть правил и почему они не переживают перезапуск |
-| [**Права**](docs/PERMISSIONS.md) | всё дерево, и какие четыре права стоит понимать буквально |
-| [**Клиентские моды**](docs/CLIENT-MODS.md) | ChunkDebug, MiniHUD, Litematica, Tweakeroo, Capture & Playback |
-| [**Устройство**](docs/ARCHITECTURE.md) | почему две половины, что в ядре, уроки протоколов |
-| [**Чужая работа**](THIRD-PARTY.md) | что взято у других проектов и на каких условиях |
+| [**Commands**](docs/COMMANDS.md) | full reference: syntax, arguments, behaviour |
+| [**Rules**](docs/RULES.md) | `/carpet`, six rules, and why they do not survive a restart |
+| [**Permissions**](docs/PERMISSIONS.md) | the whole tree, and the four nodes to read literally |
+| [**Client mods**](docs/CLIENT-MODS.md) | ChunkDebug, MiniHUD, Litematica, Tweakeroo, Capture & Playback |
+| [**Architecture**](docs/ARCHITECTURE.md) | why two halves, what is in the core, protocol lessons |
+| [**Third party**](THIRD-PARTY.md) | what is borrowed and under which terms |
 
 ---
 
-## Три вещи, ради которых всё затевалось
+## The three things this exists for
 
-### Наблюдатель — ноль тикающих чанков
+### Observer — zero ticking chunks
 
 ```
 /ghost
 ```
 
-Игрок перестаёт влиять на симуляцию, но продолжает взаимодействовать с миром: блоки
-ставятся и ломаются, контейнеры открываются. Не грузит чанки, не занимает мобкап,
-не будит мобов через EAR, не замечается ими, не виден другим.
+The player stops affecting the simulation but keeps interacting with the world: blocks
+place and break, containers open. Loads no chunks, takes no mobcap, wakes no mobs
+through EAR, is not noticed by them, is invisible to others.
 
-**Измерено:** игрок с `simulation-distance=5` держит 121 тикающий чанк (11×11);
-наблюдатель — **ноль**. Замер делался при живом игроке рядом, а не в пустом мире:
-итог по миру был ровно 121, то есть вклад наблюдателя нулевой на фоне настоящей
-нагрузки.
+**Measured:** a player at `simulation-distance=5` holds 121 ticking chunks (11×11);
+the observer holds **zero**. The measurement was taken with a live player present, not
+in an empty world — the world total came to exactly 121, so the observer contributed
+nothing against real load.
 
-Одной персональной дистанции симуляции для этого мало. `tickMap` в Moonrise с
-радиусом 0 всё равно покрывает чанк под самим игроком, и энтити в нём оживают, стоит
-туда войти. Поэтому гасится очередь `tickingQueue` — единственная точка, где чанк
-переходит в стадию TICK.
+A personal simulation distance alone is not enough. Moonrise's `tickMap` at radius 0
+still covers the chunk under the player, and entities there wake up the moment you walk
+in. So `tickingQueue` is cleared — the single point where a chunk enters the TICK stage.
 
-### Трасса спавна — где именно умирает попытка
+### Spawn trace — where the attempt actually dies
 
 ```
 /labspawn
@@ -62,75 +61,76 @@ spawn monster  cap 113307 · passes 4 · position 0 · plugin 0 · spawned 1
 spawn ambient  cap 0 · passes 113311 · position 479805 · plugin 0 · spawned 0
 ```
 
-Движок не сообщает, на каком шаге остановилась попытка появления моба, а причин
-несколько и они разного смысла. Здесь видно сразу: у монстров всё упирается в кап,
-у ambient кап свободен, но не проходит позиция. Столбец `plugin` — единственная
-причина, которой в чистом Paper быть не должно.
+The engine never says which step a spawn attempt failed at, and the reasons differ in
+kind. Here it reads at a glance: monsters are capped, while ambient has cap headroom
+and fails on position. The `plugin` column is the one cause that should not exist on
+clean Paper.
 
-Единицы разные, складывать столбцы нельзя: `cap` и `passes` считаются на проход
-«чанк × категория», остальные — на каждую пробуемую позицию.
+The units differ, so the columns do not add up: `cap` and `passes` count per
+chunk × category pass, the rest count per attempted position.
 
-### Боты — настоящие игроки без клиента
+### Bots — real players without a client
 
 ```
 /player Steve spawn
 /player Steve use continuous
 ```
 
-Наследуют от вызывающего позицию, взгляд, измерение, режим и полёт. Со скинами.
-Действия с ритмом `once | continuous | interval N`, ход, транспорт, автоподъём
-после смерти.
+They inherit position, look, dimension, game mode and flight from the caller. With
+skins. Actions on a `once | continuous | interval N` rhythm, movement, vehicles,
+auto-respawn after death.
 
-`doTick()` вызывается в фазе соединений — ровно там и в том же порядке относительно
-`tick()`, что у живого игрока. Плагином это недостижимо: его планировщик работает
-в начале `tickChildren`, до фазы уровней. Отсюда и нужда в форке ядра.
-
----
-
-## Остальное коротко
-
-**Подписки в таб-лист** вместо спама в чат — `/log tps`, `/log mobcaps <ник>`,
-`/log counter <цвет>`, `/log spawn`, плюс логгеры `item`, `microtiming`, `movement`
-в духе Carpet TIS Addition. Если на сервере стоит TAB, футер достаётся ему, и наши
-подписки уживаются с его вёрсткой.
-
-**Счётчики воронок** — `/counter`, воронка в шерсть, цвет шерсти как имя счётчика.
-
-**Инструменты Carpet под теми же именами** — `/perimeterinfo`, `/info block`,
-`/distance`. У `perimeterinfo` одно осознанное отличие: мы обходим только загруженные
-чанки и пишем, сколько пропущено. Carpet подгружает мир, нам так нельзя — подгрузка
-меняет ровно то, что мы меряем.
-
-**Клиентские моды** получают свои каналы: карта чанков ChunkDebug, оверлеи MiniHUD,
-вставка схематик Litematica без спама в чат, запись сигналов Capture & Playback.
-Подробности и настройка — в [CLIENT-MODS.md](docs/CLIENT-MODS.md).
+`doTick()` is called in the connection phase — exactly where, and in the same order
+relative to `tick()`, as for a live player. A plugin cannot reach that: its scheduler
+runs at the start of `tickChildren`, before the level phase. Hence the core fork.
 
 ---
 
-## Установка
+## Everything else, briefly
 
-Требуется **Java 25** и серверный jar из
+**Tab-list subscriptions** instead of chat spam — `/log tps`, `/log mobcaps <name>`,
+`/log counter <colour>`, `/log spawn`, plus `item`, `microtiming` and `movement`
+loggers in the spirit of Carpet TIS Addition. If TAB is installed, the footer is left
+to it and our subscriptions coexist with its layout.
+
+**Hopper counters** — `/counter`. Point a hopper into wool; the wool colour names the
+counter.
+
+**Carpet tools under their own names** — `/perimeterinfo`, `/info block`, `/distance`.
+`perimeterinfo` has one deliberate difference: we walk loaded chunks only and report
+how many were skipped. Carpet loads the world as it goes; we cannot, because loading
+changes the very thing being measured.
+
+**Client mods** get their channels: the ChunkDebug chunk map, MiniHUD overlays,
+Litematica pasting without chat spam, Capture & Playback signal recording. See
+[CLIENT-MODS.md](docs/CLIENT-MODS.md).
+
+---
+
+## Installing
+
+Needs **Java 25** and the server jar from
 [paperlab-core](https://github.com/oCreker/paperlab-core).
 
-1. Положить `PaperLab-*.jar` в `plugins/`.
-2. Запустить сервер.
-3. Выдать права — по умолчанию всё на OP:
+1. Drop `PaperLab-*.jar` into `plugins/`.
+2. Start the server.
+3. Grant permissions — everything defaults to OP:
 
 ```
 /lp group admin permission set paperlab.* true
 ```
 
-Права зарегистрированы в Bukkit, поэтому LuckPerms подсказывает их сам. Что есть
-у тебя прямо сейчас, покажет `/carpet perms`.
+Permissions are registered with Bukkit, so LuckPerms suggests them on its own.
+`/carpet perms` shows the tree and marks what you currently hold.
 
 ---
 
-## Сборка
+## Building
 
-Нужен **JDK 25** и собранный рядом форк ядра. Плагин компилируется против серверного
-jar, а не против `paper-api`: инструментам нужны внутренности сервера
-(`ServerPlayer.mobCounts`, `ChunkMap.getMobCountNear`, `ChunkHolderManager` из
-Moonrise), которых в публичном API нет по определению.
+Needs **JDK 25** and the core fork built alongside. The plugin compiles against the
+server jar rather than `paper-api`: the tools need server internals
+(`ServerPlayer.mobCounts`, `ChunkMap.getMobCountNear`, Moonrise's `ChunkHolderManager`)
+that the public API does not expose by design.
 
 ```bash
 git clone https://github.com/oCreker/paperlab-core.git
@@ -145,37 +145,37 @@ cd paperlab-core && ./gradlew applyPatches && ./gradlew createPaperclipJar
 cd ../paperlab && ./gradlew jar
 ```
 
-Порядок обязателен, каталоги переименовывать нельзя: путь к ядру задан в
-`build.gradle.kts` как `../paperlab-core` (с запасным вариантом `../../fork/paper-lab`).
-В ядре `applyPatches` и `createPaperclipJar` — **двумя отдельными вызовами** Gradle:
-в одном они дерутся за дерево исходников.
+The order matters and the directory names cannot change: the core path is set in
+`build.gradle.kts` as `../paperlab-core`. In the core, `applyPatches` and
+`createPaperclipJar` must be **two separate Gradle invocations** — in one they fight
+over the source tree.
 
-Готовые файлы:
+Outputs:
 
 ```
 paperlab-core/paper-server/build/libs/paper-paperclip-26.2.local-SNAPSHOT.jar
 paperlab/build/libs/PaperLab-1.0.5.jar
 ```
 
-Paper 26.2 работает в mojang-маппинге, поэтому плагин, собранный против серверного
-jar, грузится без ремаппинга. Обратная сторона: он привязан к **этой** сборке ядра
-и на другой сборке 26.2 может не загрузиться. Это ожидаемо, а не поломка.
+Paper 26.2 runs on mojang mappings, so a plugin built against the server jar loads
+without remapping. The flip side: it is tied to **this** core build and may not load
+on a different 26.2 build. That is expected, not a defect.
 
-### Тесты
+### Tests
 
 ```bash
 ./gradlew test
 ```
 
-58 тестов. Ещё 25 — дифференциальные: они сверяют нашу кодировку не с нашими же
-ожиданиями, а с **настоящим кодом клиентских модов**. Пакет собирается нами и
-разбирается их декодером. Это единственный способ поймать расхождение, которое иначе
-всплывает только у игрока: так и выяснилось, что malilib читает сетевой NBT, а Servux
-пишет gzip, — и все наши тесты при этом были зелёные.
+58 tests. Another 25 are differential: they check our encoding against the **real code
+of the client mods** rather than against our own expectations — we build the packet,
+their decoder reads it. That is the only way to catch a mismatch that otherwise surfaces
+only in front of a player. It is how we found that malilib reads network NBT while
+Servux writes gzip, with every one of our own tests green at the time.
 
-Чужие моды в репозитории не лежат: у каждого своя лицензия, а у g4mespeed это
-GPL-2.0, несовместимая с нашей GPL-3.0. Кто хочет прогнать эти тесты, кладёт файлы
-сам:
+Third-party mods are not kept in the repository: each has its own licence, and
+g4mespeed's is GPL-2.0, incompatible with our GPL-3.0. To run those tests, supply the
+files yourself:
 
 ```
 libs/malilib-fabric-26.2-*.jar
@@ -184,36 +184,36 @@ libs/src/com/g4mesoft/util/GS{Encode,Decode}Buffer.java
 libs/src/com/g4mesoft/captureplayback/common/asset/*.java
 ```
 
-Без них эти тесты исключаются из сборки. Каталог `libs/` целиком в `.gitignore` —
-чужой код не должен попадать в наши коммиты даже случайно.
+Without them those tests are excluded from the build. `libs/` is in `.gitignore`
+entirely — third-party code must not reach our commits even by accident.
 
 ---
 
-## Что теряется без нашего ядра
+## What is lost without our core
 
-| | На нашем ядре | На чистом Paper |
+| | With our core | On stock Paper |
 |---|---|---|
-| `/ghost` | полный: ноль тикающих чанков | частичный: занимает мобкап, будит мобов, замечается ими |
-| трасса спавна | кап / позиция / плагин / успех | только «появилось / отменено» |
-| боты `/player` | есть | нет |
-| `/tick toggle`, `/tick warp` | есть | нет |
-| воспроизведение сигналов | есть | команды есть, сигналы в мир не идут |
-| `/log microtiming` | порядок внутри тика, глубина вызовов | грубо, по событиям Bukkit |
-| правила ядра | есть | помечены `(needs our core)` |
-| остальное | есть | есть |
+| `/ghost` | full: zero ticking chunks | partial: takes mobcap, wakes mobs, is noticed |
+| spawn trace | cap / position / plugin / success | only "spawned / cancelled" |
+| `/player` bots | yes | no |
+| `/tick toggle`, `/tick warp` | yes | no |
+| signal playback | yes | commands exist, signals never reach the world |
+| `/log microtiming` | in-tick order, call depth | coarse, from Bukkit events |
+| core rules | yes | marked `(needs our core)` |
+| everything else | yes | yes |
 
-Запуск на чистом Paper — не запасной вариант, а инструмент: можно прогнать один и тот
-же тест с ядром и без него и увидеть разницу.
+Running on stock Paper is not a fallback but an instrument: the same measurement can be
+run with and without the core, and the difference is the answer.
 
 ---
 
-## Лицензия
+## Licence
 
-**GPL-3.0** — [LICENSE.md](LICENSE.md). Плагин компилируется против серверных
-внутренностей Paper, а те унаследовали GPL от Spigot, Bukkit и CraftBukkit.
+**GPL-3.0** — [LICENSE.md](LICENSE.md). The plugin compiles against Paper server
+internals, and those inherited GPL from Spigot, Bukkit and CraftBukkit.
 
-Что взято у других проектов и на каких условиях — в [THIRD-PARTY.md](THIRD-PARTY.md).
-Коротко: тексты и разметка команд взяты из **Carpet Mod** (MIT, © gnembon), и это
-сделано намеренно — человек, пришедший с Carpet, не должен гадать, что здесь значит
-другой оттенок. Протоколы Servux, MiniHUD, Litematica, ChunkDebug и Capture & Playback
-реализованы заново по формату, чужого кода в них нет.
+What is borrowed and on what terms: [THIRD-PARTY.md](THIRD-PARTY.md). In short, the
+command text and markup come from **Carpet Mod** (MIT, © gnembon), deliberately — someone
+arriving from Carpet should not have to guess what a different shade means here. The
+Servux, MiniHUD, Litematica, ChunkDebug and Capture & Playback protocols are
+reimplemented from the wire format; none of their code is included.
