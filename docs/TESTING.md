@@ -67,6 +67,11 @@ with an observer present, everything downstream is unreliable.
 | 2.4 | Collection is off with no subscribers | code | `SpawnTrace.enabled` is one volatile read |
 | 2.5 | Turning it on costs no measurable TPS | measurement | `/log tps` with the trace on and off |
 | 2.6 | Reduced version works on stock Paper | bench | control instance, only spawned/cancelled |
+| 2.7 | The trace collects under a real spawn cycle | measurement | overworld: `cap 20658 · passes 668 · position 1618 · spawned 5` |
+
+2.7 is worth knowing before anyone repeats it: the bench's flat nether has nowhere for a mob to
+spawn, so the spawn loop never reaches a chunk there and the trace reports **no data** — correctly,
+but it looks identical to a broken instrument. Check the trace in the overworld.
 
 2.5 matters: a lab that measures time must not pay for its own instruments. If the trace
 costs TPS, every measurement taken with it on is suspect.
@@ -88,12 +93,29 @@ costs TPS, every measurement taken with it on is suspect.
 | 3.9 | Auto-respawn after death | bench | `/player Bot respawn on`, then kill it |
 | 3.10 | Inventory and XP survive spawn/kill | bench | give items, kill, respawn |
 | 3.11 | Bots are removed on plugin disable | bench | `/reload` or stop; no ghosts in the tab list |
-| 3.12 | A bot counts towards the mobcap like a player | measurement | `/log mobcaps <bot>` |
+| 3.12 | A bot holds the same chunks as a player | measurement | 121 each, world total exactly 242 |
+| 3.13 | A bot is in the per-player mobcap census | measurement | `/paper playermobcaps`, identical to a player's |
+| 3.14 | A bot takes damage and dies like a player | bench | killed by summoned zombies |
 
-**3.12 is unproven and is the largest open question about bots.** Matching call order is a
-necessary condition, not a proof of equivalence. Until a bot and a live player produce the
-same mobcap and the same chunk tickets side by side, a bot is a load instrument rather than
-a reference player. `LabBot`'s javadoc says as much.
+**3.12 to 3.14 settle the largest open question about bots.** Matching call order is a necessary
+condition, not a proof of equivalence, so it was measured instead.
+
+A bot was placed 800 blocks from a live player so their chunk sets could not overlap:
+
+```
+oCreker    @ chunk 0,0    within 12: ENTITY_TICKING 121
+EqBot_bot  @ chunk 50,50  within 12: ENTITY_TICKING 121
+world total:                         ENTITY_TICKING 242
+```
+
+121 each and a world total that is exactly their sum — no overlap, no shortfall. The mobcap was
+checked with Paper's own `/paper playermobcaps` rather than ours, so the instrument is
+independent of the code under test: the bot appears with its own per-player caps, identical in
+shape to the player's. Incidentally, zombies summoned next to the bot killed it, which is one
+more way it behaves as a player does.
+
+A bot is therefore a reference player for chunk load and mobcap purposes, not merely a load
+instrument.
 
 ---
 
@@ -262,21 +284,58 @@ the `paperlab.cplay.admin` defect, where an admin override silently did not exis
 
 ## 10. Load and stability
 
-Nothing here has been done. Everything below is new work.
+| # | Check | Level | Result |
+|---|---|---|---|
+| 10.1 | Overnight run with bots and an active farm | **untested** | catches leaks and slow degradation |
+| 10.2 | Cost of a running playback | measurement | +0.27 ms per tick, see below |
+| 10.3 | Cost of the spawn trace while collecting | measurement | about +0.5 ms under an active spawn cycle |
+| 10.4 | Chunk map while flying fast | **untested** | hundreds of changed chunks per second |
+| 10.5 | Several players with different mod sets | **untested** | channels interfering |
+| 10.6 | `/reload` with everything enabled | **untested** | rules reverted, bots removed, no duplicate registration |
+| 10.7 | Server restart with saved defaults | bench | rules applied, nothing else |
+| 10.8 | Memory over a long run | **untested** | asset store, chunk map delta state, subscriptions |
 
-| # | Check | Why it matters |
+### How the numbers were taken
+
+`/tick query` reports the mean and percentiles over 100 ticks. Each figure below is the mean of
+20 such samples, taken two seconds apart, alternating between the two states so that any drift
+in the bench cancels out.
+
+The load is a field of 1681 redstone dust (41×41) driven by a pair of observers facing each
+other, with a bot holding the chunks. The playback under test ran **in the nether** while the
+load sat **in the overworld**, so anything it cost the overworld was the hook and not the work.
+
+Bench idle, no load, no instruments: 0.47 ms.
+
+| State | Mean | P95 |
 |---|---|---|
-| 10.1 | Overnight run with bots and an active farm | catches leaks and slow degradation |
-| 10.2 | MSPT with every subscription on vs none | the instruments must not cost measurable time |
-| 10.3 | Chunk map while flying fast | hundreds of changed chunks per second |
-| 10.4 | Several players with different mod sets | channels interfering |
-| 10.5 | `/reload` with everything enabled | rules reverted, bots removed, no duplicate registration |
-| 10.6 | Server restart with saved defaults | rules applied, nothing else |
-| 10.7 | Memory over a long run | asset store, chunk map delta state, subscriptions |
+| load, no playback | 2.46 ms | 6.16 ms |
+| load, playback running | 2.73 ms | 6.46 ms |
+| no load, no playback | 1.51 ms | 2.22 ms |
+| no load, playback running | 1.65 ms | 2.27 ms |
 
-10.2 is the one that decides whether this is a measuring instrument or a toy. Every claim in
-the documentation about "one volatile read" and "no traffic while standing still" is a design
-statement; none of them has a number next to it yet.
+**A running playback costs about 0.14 ms per tick on its own** — that is the last pair, where
+there is no redstone for the hook to touch. Under the redstone load the total cost is 0.27 ms,
+so roughly 0.13 ms of it is `isSignalOverridden` being consulted on every signal query in a
+world that has no playback at all.
+
+That share was measurably larger before `stateOf` gained its single-entry cache: 0.37 ms total
+against 0.27 ms after. Both figures sit close to the noise of this bench, so treat the
+improvement as indicative rather than exact — the direction was consistent across every
+alternation, the magnitude was not.
+
+**What this means.** The instruments are cheap but not free. Nothing here justifies leaving a
+playback running while taking a measurement, and the documentation's claim that an idle
+subscription costs "one volatile read" holds: with no playback anywhere, the difference from a
+plugin-free server is below what this bench can resolve.
+
+### A caution about measuring this
+
+The first version of this experiment concluded that the hook cost 0.37 ms. It did not isolate
+the hook at all: a running playback ticks, reads frames and updates neighbours, and `/tick
+query` is server-wide, so most of that figure was the playback doing its job. The number only
+became meaningful once the same comparison was repeated with the redstone load removed. A
+measurement that cannot be wrong is not a measurement.
 
 ---
 
@@ -284,12 +343,11 @@ statement; none of them has a number next to it yet.
 
 Collected here so it is not lost in the tables above.
 
-1. Bot / live player equivalence (3.12).
-2. Editor changes are not persisted (8.9).
-3. Instrument overhead — all of section 10, and 8.10 in particular.
-4. Collaborative sessions between two clients (8.12).
-5. Tweakeroo channel (7.12) — written, never exercised, and not currently needed.
-6. The mod's Server Settings tab (8.13).
+1. Editor changes are not persisted (8.9).
+2. An overnight run, memory, `/reload`, and the chunk map under fast flight (10.1, 10.4-10.6, 10.8).
+3. Collaborative sessions between two clients (8.12).
+4. Tweakeroo channel (7.12) — written, never exercised, and not currently needed.
+5. The mod's Server Settings tab (8.13).
 
 Closed since this plan was written: hopper counters against a real farm (a hopper into wool
 reported 9000/h, which is exactly a hopper's throughput); schematic pasting with chests and with
@@ -300,6 +358,6 @@ rotation; the TAB integration; and Capture & Playback end to end.
 1. **The block-event loop under playback (8.11)** — an infinite loop inside a tick hangs the
    server. Highest severity even at low probability.
 2. **Cost of the signal hook (8.10)** — a hot path in every redstone update, unmeasured.
-3. **Bots as a reference (3.12)** — if they are not equivalent to players, every measurement
-   taken with them carries an unknown bias.
-4. **Instrument overhead (10.2)** — unmeasured, and it undermines everything if real.
+3. **Instrument overhead** — now measured rather than assumed: 0.27 ms per tick for a running
+   playback under a heavy redstone load. Small, but not zero, and it argues against leaving a
+   playback running while measuring something else.
