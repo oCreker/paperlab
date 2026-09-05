@@ -31,6 +31,8 @@ import org.jetbrains.annotations.Nullable;
  *
  * Подписок на один логгер может быть несколько — по одной на цель. Повторная команда
  * с той же целью выключает её, с другим флагом — заменяет.
+ *
+ * <p>Тексты и раскладка взяты из Carpet Mod (MIT, (c) gnembon), см. THIRD-PARTY.md.
  */
 public final class LabLogCommand {
 

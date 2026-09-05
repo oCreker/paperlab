@@ -41,6 +41,8 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>Список отслеживаемых воронок наполняется при установке блока и командой
  * {@code /counter scan}: обходить все загруженные чанки каждый тик слишком дорого.
+ *
+ * <p>Краткая строка счётчика повторяет Carpet Mod (MIT, (c) gnembon), см. THIRD-PARTY.md.
  */
 public final class LabCounters {
 

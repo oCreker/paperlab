@@ -48,6 +48,9 @@ import net.kyori.adventure.text.format.TextDecoration;
  * <p>Отличие от Carpet чисто техническое: там компоненты изменяемые и событие вешается
  * правкой стиля на месте, у Adventure они неизменяемые — поэтому последний кусок держим
  * отдельно и подменяем целиком.
+ *
+ * <p>Основано на {@code carpet.utils.Messenger} из Carpet Mod (MIT, (c) gnembon).
+ * Условия и полный перечень заимствований — в THIRD-PARTY.md.
  */
 public final class Msg {
 
