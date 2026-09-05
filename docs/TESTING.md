@@ -130,12 +130,11 @@ exactly the silent failure the whole rule design exists to prevent.
 | 5.6 | Counters in the tab list | bench | `/log counter white` |
 | 5.7 | `item`, `microtiming`, `movement` | client | need real events |
 | 5.8 | Clearing the last subscription clears the footer | bench | `/log clear` |
-| 5.9 | TAB integration: the footer goes to TAB | **untested** | TAB is not installed on the bench |
+| 5.9 | TAB integration: the footer goes to TAB | client | verified and fixed by Florentem on his own server |
 | 5.10 | Concurrent subscribe/read without a CME | unit | `LabLoggerConcurrencyTest` |
 
-**5.9 is a real debt.** The code is written and reasoned about, but TAB has never been
-installed alongside it. On a server with TAB the subscriptions may flicker or not appear at
-all, and nobody has looked.
+5.9 was a real debt for a while: the code was written and reasoned about while TAB had never
+been installed alongside it. Florentem ran it on a server with TAB and fixed what broke.
 
 ---
 
@@ -148,13 +147,13 @@ all, and nobody has looked.
 | 6.3 | Items are counted with metadata | unit | `LabCountersTest` |
 | 6.4 | Rate per hour, monotonic clock | unit | same |
 | 6.5 | Zero interval gives `null`, not infinity | unit | same |
-| 6.6 | **A real farm over an hour** | **untested** | the rate has never been compared against a known one |
+| 6.6 | A real farm | client | a hopper into wool reported 9000/h, exactly a hopper's throughput |
 | 6.7 | Output matches Carpet's grammar | bench | `/counter white` |
 
-**6.6 is the oldest debt in the project.** The counters have been checked by command and by
-unit test, never against a farm with a known output. Until then the numbers are plausible
-rather than verified — and the plugin's own javadoc admits the accounting can be a tick off,
-because a plugin cannot intercept `ejectItems`.
+6.6 was the oldest debt in the project and is now closed: a hopper into wool reported 9000
+items per hour, which is exactly what a hopper moves — one item per 8 ticks. The plugin's own
+javadoc still holds, though: accounting can be a tick off, because a plugin cannot intercept
+`ejectItems`. That is immaterial for comparing rates and would matter for sub-tick work.
 
 ---
 
@@ -173,14 +172,13 @@ Everything here needs a real client. This is the largest block that cannot be au
 | 7.7 | MiniHUD: debug renderers via `paperlab.debugdata` | client | without OP |
 | 7.8 | Litematica: paste with no chat spam | client | `entityDataSync` must be on |
 | 7.9 | Litematica: powered dust stays powered | client | this is what `UPDATE_SKIP_ON_PLACE` is for |
-| 7.10 | Litematica: **chests and hoppers** | **untested** | block entity data is carried, but `onPlace` no longer runs for them |
-| 7.11 | Litematica: **rotation and mirroring** | **untested** | only unrotated placement has been checked live |
+| 7.10 | Litematica: chests and hoppers | client | contents survive the paste |
+| 7.11 | Litematica: rotation and mirroring | client | verified on a real schematic |
 | 7.12 | Tweakeroo: inventory preview | **untested** | the channel is written, never exercised |
 | 7.13 | Every channel is silent without permission | bench | revoke and check the mod sees no server side |
 
-7.10 and 7.11 are the risky ones: the transforms are verified by arithmetic and by reading
-Litematica's code, and a mistake there does not fail loudly — it silently shifts or rotates
-the build.
+7.10 and 7.11 were the risky ones — a mistake in the transforms does not fail loudly, it
+silently shifts or rotates the build. Both have now been checked on a real schematic.
 
 ---
 
@@ -191,26 +189,52 @@ The newest subsystem and the least exercised.
 | # | Check | Level | How |
 |---|---|---|---|
 | 8.1 | Wire format matches the mod | differential | `CPlayWireTest`, `CPlayDifferentialFuzzTest` |
-| 8.2 | Handshake, asset history, player cache | bench | `/cplay status` |
+| 8.2 | Handshake, asset history, player cache | client | the mod's Info tab lists both extensions |
 | 8.3 | The channel is closed without `paperlab.cplay` | bench | this was a real hole; check it stays closed |
 | 8.4 | Asset import writes a file safely | code | server-side UUID names, atomic write |
-| 8.5 | **Recording a real region** | **untested** | `/capture start` |
-| 8.6 | **Playing signals back** | **untested** | needs the core; `/playback start` |
-| 8.7 | **Signal override on the hot path** | **untested** | `SignalGetter.getSignal`, the early-out |
-| 8.8 | **The block-event loop under playback** | **risk** | see below |
-| 8.9 | Collaborative session between two clients | **untested** | needs two players with the mod |
+| 8.5 | Recording a region | client | `/capture start`, verified on redstone |
+| 8.6 | Playing signals back | client | lever, repeaters and lamp reproduce the run |
+| 8.7 | A recording opens in the mod's editor | client, differential | `CPlaySequenceDifferentialTest` |
+| 8.8 | What the editor shows is what plays | code | playback reads the sequence, not the frames |
+| 8.9 | **Editor changes are not persisted** | **gap** | see below |
+| 8.10 | **Signal override on the hot path** | **untested** | `SignalGetter.getSignal`, the early-out |
+| 8.11 | **The block-event loop under playback** | **risk** | see below |
+| 8.12 | Collaborative session between two clients | **untested** | needs two players with the mod |
+| 8.13 | **Server Settings tab is empty** | **gap** | we advertise Core but never send its packet 6 |
 
-**8.8 deserves attention before release.** `onRunBlockEventsLoop` receives the queue size as
+**8.9.** A session accepts edits and relays them to the other participants, but nothing applies
+them to the stored asset: `SessionState` keeps the deltas in memory and the file is untouched.
+Edits therefore live only as long as the session and are gone after a restart. Applying them
+means understanding the mod's delta format, which has not been done.
+
+**8.13.** The mod's Server Settings tab stays empty because the tab is filled by Core packet 6,
+`GSServerSettingMapPacket`, and we implement only packet 10 of that extension. Those are
+G4mespeed's own settings and nothing in Capture & Playback depends on them.
+
+**8.11 deserves attention before release.** `onRunBlockEventsLoop` receives the queue size as
 a snapshot parameter rather than re-reading it. Progress is guaranteed only if
 `handleReadySignalEvents` always consumes an event at the current microtick. It looks
-defensible by reading, but an infinite loop inside a tick would hang the server, so it is
-worth exercising deliberately: a playback with several signals in one tick, and one with a
-gap of several microticks.
+defensible by reading, and playbacks on the bench have not hung, but an infinite loop inside a
+tick would take the server with it — worth exercising deliberately with several signals in one
+tick and with a gap of several microticks.
 
-**8.7 matters for a different reason.** `getSignal` is called on every redstone update in
+**8.10 matters for a different reason.** `getSignal` is called on every redstone update in
 the world. The early-out is a static map emptiness check, which should be free — but "should
 be" is not a measurement. Compare MSPT on a redstone-heavy contraption with playback idle and
 with the plugin absent entirely.
+
+### What a recording holds, and what it does not
+
+A capture records **inputs**: a lever thrown, a plate stepped on, an observer firing. Dust,
+repeaters, comparators and torches are not recorded — the circuit recomputes those, exactly as
+it did while recording.
+
+That is a deliberate limit, not an omission. The playback override is omnidirectional, so a
+replayed repeater would power the dust beside it, which vanilla never does; and a replayed
+component fights the one the circuit is computing at the same moment, with no principled answer
+as to which wins. The cost is that a recording cannot capture a subsystem's output on its own —
+only what drove it. Recording components faithfully would mean storing a direction on every
+edge and making the override directional.
 
 ---
 
@@ -260,20 +284,22 @@ statement; none of them has a number next to it yet.
 
 Collected here so it is not lost in the tables above.
 
-1. Hopper counters against a real farm (6.6) — the oldest debt.
-2. Schematic pasting with chests and hoppers (7.10), with rotation (7.11).
-3. TAB integration (5.9) — the plugin has never been installed.
-4. Tweakeroo channel (7.12).
-5. Capture & Playback end to end (8.5–8.9) — the entire subsystem.
-6. Bot / live player equivalence (3.12).
-7. All of section 10.
+1. Bot / live player equivalence (3.12).
+2. Editor changes are not persisted (8.9).
+3. Instrument overhead — all of section 10, and 8.10 in particular.
+4. Collaborative sessions between two clients (8.12).
+5. Tweakeroo channel (7.12) — written, never exercised, and not currently needed.
+6. The mod's Server Settings tab (8.13).
+
+Closed since this plan was written: hopper counters against a real farm (a hopper into wool
+reported 9000/h, which is exactly a hopper's throughput); schematic pasting with chests and with
+rotation; the TAB integration; and Capture & Playback end to end.
 
 ## Known risks, ranked
 
-1. **The block-event loop under playback (8.8)** — an infinite loop inside a tick hangs the
+1. **The block-event loop under playback (8.11)** — an infinite loop inside a tick hangs the
    server. Highest severity even at low probability.
-2. **Cost of the signal hook (8.7)** — a hot path in every redstone update, unmeasured.
-3. **Schematic transforms (7.10, 7.11)** — fail silently, and silence is the problem.
-4. **Bots as a reference (3.12)** — if they are not equivalent to players, every measurement
+2. **Cost of the signal hook (8.10)** — a hot path in every redstone update, unmeasured.
+3. **Bots as a reference (3.12)** — if they are not equivalent to players, every measurement
    taken with them carries an unknown bias.
-5. **Instrument overhead (10.2)** — unmeasured, and it undermines everything if real.
+4. **Instrument overhead (10.2)** — unmeasured, and it undermines everything if real.
