@@ -24,25 +24,25 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Счётчики воронок.
+ * Hopper counters.
  *
- * <p><b>Механика отличается от версии в ядре, и это ограничение плагина.</b>
- * Ядро перехватывало {@code HopperBlockEntity.ejectItems} и забирало содержимое ровно
- * в тот момент, когда воронка пыталась выгрузиться. Из плагина такого перехвата нет,
- * поэтому воронки, направленные в шерсть, опустошаются задачей раз в тик.
+ * <p><b>The mechanism differs from the core version, and that is a plugin limitation.</b>
+ * The core used to intercept {@code HopperBlockEntity.ejectItems} and take the contents at the
+ * exact moment the hopper tried to push. A plugin has no such interception, so hoppers pointed
+ * into wool are drained by a once-per-tick task.
  *
- * <p>Практические следствия:
+ * <p>Practical consequences:
  * <ul>
- *   <li>момент учёта может отличаться от «настоящего» на тик;</li>
- *   <li>воронка успевает заполниться, поэтому её собственный cooldown ведёт себя как
- *       у обычной полной воронки, а не как у мгновенно опустошаемой.</li>
+ *   <li>the moment of accounting can be a tick off from the real one;</li>
+ *   <li>the hopper does fill up, so its own cooldown behaves like an ordinary full hopper's
+ *       rather than an instantly drained one.</li>
  * </ul>
- * Для сравнения рейтов между прогонами это приемлемо, для субтиковых измерений — нет.
+ * That is acceptable for comparing rates between runs, but not for sub-tick measurements.
  *
- * <p>Список отслеживаемых воронок наполняется при установке блока и командой
- * {@code /counter scan}: обходить все загруженные чанки каждый тик слишком дорого.
+ * <p>The tracked-hopper list is filled on block placement and by {@code /counter scan}: walking
+ * every loaded chunk each tick would be far too expensive.
  *
- * <p>Краткая строка счётчика повторяет Carpet Mod (MIT, (c) gnembon), см. THIRD-PARTY.md.
+ * <p>The counter summary line follows Carpet Mod (MIT, (c) gnembon), see THIRD-PARTY.md.
  */
 public final class LabCounters {
 
@@ -57,13 +57,13 @@ public final class LabCounters {
 
     private static final Map<Key, LabCounter> COUNTERS = new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** Отслеживаемые воронки: местоположение → цвет шерсти, в которую она смотрит. */
+    /** Tracked hoppers: location -> the colour of the wool it points into. */
     private static final Map<BlockPosKey, DyeColor> TRACKED = new java.util.concurrent.ConcurrentHashMap<>();
 
     private LabCounters() {
     }
 
-    /** Проверка воронки: смотрит ли она в блок шерсти. */
+    /** Hopper check: does it point into a wool block. */
     public static @Nullable DyeColor targetColour(final Block block) {
         if (!(block.getState() instanceof Hopper)) {
             return null;
@@ -76,7 +76,7 @@ public final class LabCounters {
         return WoolColors.byMaterial(target.getType());
     }
 
-    /** Добавить воронку под наблюдение, если она смотрит в шерсть. */
+    /** Start tracking a hopper if it points into wool. */
     public static boolean track(final Block block) {
         final DyeColor colour = targetColour(block);
         final BlockPosKey key = BlockPosKey.of(block);
@@ -88,7 +88,7 @@ public final class LabCounters {
         return true;
     }
 
-    /** Обойти окрестности игрока и найти воронки, смотрящие в шерсть. */
+    /** Walk the area around a player and find hoppers pointing into wool. */
     public static int scan(final Location centre, final int radius) {
         int found = 0;
         final World world = centre.getWorld();
@@ -111,7 +111,7 @@ public final class LabCounters {
         return found;
     }
 
-    /** Раз в тик: опустошаем отслеживаемые воронки и учитываем содержимое. */
+    /** Once per tick: drain the tracked hoppers and account for the contents. */
     public static void tick() {
         if (TRACKED.isEmpty()) {
             return;
@@ -126,7 +126,7 @@ public final class LabCounters {
             final Block block = world.getBlockAt(posKey.x(), posKey.y(), posKey.z());
             final DyeColor colour = targetColour(block);
             if (colour == null) {
-                // Воронку сломали или развернули — снимаем с наблюдения.
+                // The hopper was broken or turned — stop tracking it.
                 stale.add(posKey);
                 continue;
             }
@@ -188,14 +188,13 @@ public final class LabCounters {
         return TRACKED.size();
     }
 
-    /** Одна строка: цвет, всего, рейт, время. */
     /**
-     * Краткая строка счётчика — грамматика Carpet: {@code name: total, N/h, M.M min}.
+     * The counter summary line — Carpet's grammar: {@code name: total, N/h, M.M min}.
      *
-     * <p>Имя красится настоящим цветом красителя (как в моде), а не приблизительным
-     * именованным: {@code light_blue} и {@code cyan} в шестнадцати именованных цветах
-     * Minecraft сливаются, а в таб-листе рядом висят несколько счётчиков и различать
-     * их надо взглядом.
+     * <p>The name is painted in the dye's true colour (as in the mod) rather than an
+     * approximate named one: {@code light_blue} and {@code cyan} merge into one another among
+     * Minecraft's sixteen named colours, and several counters sit side by side in the tab list
+     * where they have to be told apart at a glance.
      */
     public static Component summary(final LabCounter counter, final long gameTime,
                                     final boolean withWorld) {
@@ -222,7 +221,7 @@ public final class LabCounters {
         return Msg.c(parts.toArray());
     }
 
-    /** Цвет красителя в виде стиля {@link Msg} — {@code #rrggbb}, как в Carpet. */
+    /** The dye colour as an {@link Msg} style — {@code #rrggbb}, as in Carpet. */
     public static String hexStyle(final DyeColor dye) {
         String hex = Integer.toHexString(dye.getTextColor() & 0xFFFFFF);
         if (hex.length() < 6) {
@@ -250,14 +249,14 @@ public final class LabCounters {
         };
     }
 
-    /** Ставим воронку или шерсть — сразу берём под наблюдение. */
+    /** A hopper or wool was placed — start tracking immediately. */
     public static final class Listener implements org.bukkit.event.Listener {
 
         @EventHandler
         public void onPlace(final BlockPlaceEvent event) {
             final Block placed = event.getBlockPlaced();
             track(placed);
-            // Шерсть могли поставить перед уже существующей воронкой.
+            // The wool may have been placed in front of an existing hopper.
             for (final BlockFace face : BlockFace.values()) {
                 if (face.isCartesian()) {
                     track(placed.getRelative(face));

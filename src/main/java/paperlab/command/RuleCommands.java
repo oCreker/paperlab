@@ -17,41 +17,40 @@ import paperlab.rules.RuleDefaults;
 import paperlab.text.Msg;
 
 /**
- * Правила под {@code /carpet} — как в Carpet: правило и одно задаваемое значение.
+ * Rules under {@code /carpet} — as in Carpet: a rule and one settable value.
  *
  * <pre>
- * /carpet                        изменённые правила и список меток
- * /carpet list                   все правила
- * /carpet list &lt;метка&gt;           правила с этой меткой
- * /carpet list defaults          что применится после перезапуска
- * /carpet &lt;правило&gt;              карточка правила
- * /carpet &lt;правило&gt; &lt;значение&gt;   установить до перезапуска
- * /carpet setDefault &lt;правило&gt; &lt;значение&gt;
- * /carpet removeDefault &lt;правило&gt;
+ * /carpet                        changed rules and the category list
+ * /carpet list                   every rule
+ * /carpet list &lt;category&gt;        rules in a category
+ * /carpet list defaults          what applies after a restart
+ * /carpet &lt;rule&gt;                 rule card
+ * /carpet &lt;rule&gt; &lt;value&gt;         set until restart
+ * /carpet setDefault &lt;rule&gt; &lt;value&gt;
+ * /carpet removeDefault &lt;rule&gt;
  * </pre>
  *
- * <p><b>Вывод повторяет Carpet дословно</b> — те же заголовки, те же кнопки, те же цвета,
- * вплоть до строк вроде {@code Change permanently?}. Это не украшательство: человек,
- * пришедший с Carpet, не должен гадать, что здесь значит другой оттенок. Разметка
- * собирается через {@link Msg} — порт карпетовского {@code Messenger}.
+ * <p><b>The output follows Carpet literally</b> — same headers, same buttons, same colours,
+ * down to strings like {@code Change permanently?}. This is not decoration: someone arriving
+ * from Carpet should not have to guess what a different shade means here. The markup is built
+ * through {@link Msg}, a port of Carpet's {@code Messenger}.
  *
- * <p><b>Почему установка не переживает перезапуск.</b> Правило меняет поведение мира, и
- * забытое включённое правило молча портит все последующие замеры: числа получаются,
- * выглядят правдоподобно и ни с чем не сопоставимы. Поэтому обычная установка действует
- * до перезапуска, а рядом всегда висит кнопка {@code setDefault} — чтобы сохранение было
- * решением, а не побочным эффектом.
+ * <p><b>Why a set does not survive a restart.</b> A rule changes how the world behaves, and a
+ * rule left on silently spoils every later measurement: the numbers come out plausible and
+ * comparable to nothing. So an ordinary set lasts until restart, with a {@code setDefault}
+ * button always next to it — making persistence a decision rather than a side effect.
  *
- * <p>Тексты и раскладка взяты из Carpet Mod (MIT, (c) gnembon), см. THIRD-PARTY.md.
+ * <p>Text and layout come from Carpet Mod (MIT, (c) gnembon), see THIRD-PARTY.md.
  */
 public final class RuleCommands {
 
-    /** Как Carpet называет себя в заголовках. */
+    /** How Carpet names itself in headers. */
     private static final String FANCY_NAME = "PaperLab";
 
-    /** Корень команды: в кнопках и подсказках. */
+    /** Command root: used in buttons and hints. */
     private static final String IDENTIFIER = "carpet";
 
-    /** Файл, в котором живут значения по умолчанию — упоминается в подсказке. */
+    /** The file the default values live in — mentioned in the tooltip. */
     private static final String CONF = "rules.conf";
 
     private static RuleDefaults defaults;
@@ -63,7 +62,7 @@ public final class RuleCommands {
         defaults = store;
     }
 
-    /** Узлы правил, которые подвешиваются к {@code /carpet}. */
+    /** Rule nodes attached to {@code /carpet}. */
     public static void attach(final LiteralArgumentBuilder<CommandSourceStack> carpet) {
         carpet.then(Commands.literal("list")
             .executes(ctx -> listSettings(ctx.getSource().getSender(),
@@ -103,8 +102,8 @@ public final class RuleCommands {
                 .executes(ctx -> removeDefault(ctx.getSource().getSender(),
                     StringArgumentType.getString(ctx, "rule")))));
 
-        // Каждое правило — свой литерал: так работает таб по именам, подсказка значений
-        // и, главное, отдельное право на каждое правило.
+        // One literal per rule: that is what makes name completion, value suggestion and,
+        // above all, a separate permission per rule work.
         for (final LabRule<?> rule : LabRules.all()) {
             carpet.then(Commands.literal(rule.name())
                 .requires(source -> source.getSender().hasPermission(rule.permission()))
@@ -133,14 +132,14 @@ public final class RuleCommands {
         return out;
     }
 
-    // ------------------------------------------------------------------ вывод
+    // ------------------------------------------------------------------ output
 
     /**
-     * Обзор без аргументов: только изменённые правила, версия и список меток.
+     * The no-argument overview: changed rules only, plus version and category list.
      *
-     * <p>Так же, как {@code /carpet} в моде. Показывать здесь все правила было бы вреднее,
-     * чем кажется: смысл экрана — «что на этом сервере не как в ваниле», и он теряется,
-     * если изменённое тонет в общем списке.
+     * <p>Exactly like {@code /carpet} in the mod. Showing every rule here would do more harm
+     * than it looks: the screen means "what on this server is not vanilla", and that is lost
+     * if the changed rules drown in the full list.
      */
     public static int listChanged(final CommandSender sender, final String version) {
         final int count = listSettings(sender,
@@ -184,7 +183,7 @@ public final class RuleCommands {
             String.format("Current %s Startup Settings from %s", FANCY_NAME, CONF), overridden);
     }
 
-    /** Строка правила со всеми кнопками — как {@code displayInteractiveSetting} в Carpet. */
+    /** A rule line with all its buttons — like {@code displayInteractiveSetting} in Carpet. */
     static Component displayInteractiveSetting(final LabRule<?> rule) {
         final List<Object> args = new ArrayList<>();
         args.add("w - " + rule.name() + " ");
@@ -202,8 +201,8 @@ public final class RuleCommands {
         if (!args.isEmpty()) {
             args.remove(args.size() - 1);
         }
-        // Недоступность правила — наша добавка: на чистом Paper часть правил читать некому,
-        // и молча показывать их наравне с рабочими значило бы врать.
+        // Unavailability is our addition: on stock Paper nothing reads some of these rules,
+        // and showing them silently alongside working ones would be a lie.
         if (!LabRules.available(rule)) {
             args.add("r  (needs our core)");
         }
@@ -211,9 +210,9 @@ public final class RuleCommands {
     }
 
     /**
-     * Кнопка значения. Раскраска дословно как в Carpet:
-     * серое — правило в ванильном значении, тёмно-зелёное — ванильный вариант у изменённого
-     * правила, жёлтое — прочие варианты. Текущее подчёркнуто, ванильное вдобавок жирное.
+     * A value button. Colouring exactly as in Carpet: grey when the rule is at its vanilla
+     * value, dark green for the vanilla option of a changed rule, yellow for the rest. The
+     * current one is underlined; the vanilla one is bold on top of that.
      */
     private static Component makeSetRuleButton(final LabRule<?> rule,
                                                final String option,
@@ -238,7 +237,7 @@ public final class RuleCommands {
             "?/" + IDENTIFIER + " " + rule.name() + " " + option);
     }
 
-    /** Карточка правила — как {@code displayRuleMenu} в Carpet. */
+    /** The rule card — like {@code displayRuleMenu} in Carpet. */
     private static int displayRuleMenu(final CommandSender sender, final LabRule<?> rule) {
         Msg.m(sender, "");
         Msg.m(sender, "wb " + rule.name(), "!/" + IDENTIFIER + " " + rule.name(), "^g refresh");
@@ -286,8 +285,8 @@ public final class RuleCommands {
     }
 
     /**
-     * Значение «включено» в терминах Carpet: булево {@code true} или число больше нуля.
-     * От этого зависит только цвет текущего значения в карточке.
+     * A value counting as "on" in Carpet's terms: boolean {@code true} or a number above zero.
+     * Only the colour of the current value on the card depends on it.
      */
     private static boolean booleanish(final LabRule<?> rule) {
         final Object value = rule.value();
@@ -309,7 +308,7 @@ public final class RuleCommands {
         return false;
     }
 
-    // -------------------------------------------------------------- установка
+    // -------------------------------------------------------------- setting
 
     private static int set(final CommandSender sender, final LabRule<?> rule, final String raw) {
         if (!LabRules.available(rule)) {
@@ -325,7 +324,7 @@ public final class RuleCommands {
             return 0;
         }
 
-        // Строка Carpet: "<rule>: <value>, [Change permanently?]".
+        // Carpet's line: "<rule>: <value>, [Change permanently?]".
         if (sender.hasPermission(LabPermissions.RULE_DEFAULT)) {
             Msg.m(sender, "w " + rule.name() + ": " + rule.printed() + ", ",
                 "c [Change permanently?]",
@@ -347,8 +346,8 @@ public final class RuleCommands {
             Msg.m(sender, "r Missing permission: ", "rb " + rule.permission());
             return 0;
         }
-        // Проверяем через ту же установку: сохранённое и введённое руками не должны
-        // расходиться в трактовке.
+        // Validated through the same set path: a stored value and a hand-typed one must not
+        // be interpreted differently.
         final String rejected = rule.set(raw);
         if (rejected != null) {
             Msg.m(sender, "r " + rejected);

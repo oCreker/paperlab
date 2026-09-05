@@ -21,11 +21,11 @@ import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 
 /**
- * Рисует подписки {@code /log} в футер таб-листа.
+ * Renders {@code /log} subscriptions into the tab-list footer.
  *
- * <p>Модель Carpet {@code HUDController}: обновление раз в секунду, по одной короткой
- * строке на подписку. Из плагина это делается штатным {@code Player#sendPlayerListFooter},
- * поэтому пакеты вручную собирать не нужно.
+ * <p>Carpet's {@code HUDController} model: one refresh per second, one short line per
+ * subscription. From a plugin this goes through the stock
+ * {@code Player#sendPlayerListFooter}, so no packets have to be assembled by hand.
  */
 public final class LabHud {
 
@@ -39,8 +39,8 @@ public final class LabHud {
         if (++tickCounter % PERIOD_TICKS != 0) {
             return;
         }
-        // Трасса спавна включается ровно на время подписки: без подписчиков в горячем
-        // пути движка остаётся чтение одного volatile поля.
+        // The spawn trace runs exactly as long as the subscription: with no subscribers the
+        // engine's hot path is left with a single volatile field read.
         SpawnView.setSubscribed(LabLoggers.SPAWN.hasSubscribers());
         if (!LabLoggers.anySubscribers()) {
             return;
@@ -57,15 +57,16 @@ public final class LabHud {
                 }
                 footer = footer.append(lines.get(i));
             }
-            // Если стоит TAB, ставим футер его же API: иначе anti-override перетрёт
-            // наш через тик, и подписки будут мигать. Подробности в TabBridge.
+            // If TAB is installed, set the footer through its own API: otherwise its
+            // anti-override overwrites ours a tick later and the subscriptions flicker. See
+            // TabBridge.
             if (!TabBridge.setFooter(player, footer)) {
                 player.sendPlayerListFooter(footer);
             }
         }
     }
 
-    /** Сбросить футер — при снятии последней подписки. */
+    /** Clear the footer, when the last subscription goes away. */
     public static void clear(final Player player) {
         if (!TabBridge.clear(player)) {
             player.sendPlayerListFooter(Component.empty());
@@ -92,15 +93,16 @@ public final class LabHud {
     }
 
     /**
-     * Строка TPS — считается и выглядит ровно как в Carpet.
+     * The TPS line — computed and rendered exactly as in Carpet.
      *
-     * <p>Раньше здесь стоял {@code Bukkit.getTPS()[0]}, и это <b>другое число</b>:
-     * у Bukkit это скользящее среднее за минуту, оно инертно и на коротком лаге почти
-     * не шевелится. Carpet показывает мгновенное {@code 1000 / max(целевой mspt,
-     * реальный mspt)} — то есть с какой скоростью сервер идёт прямо сейчас. Расхождение
-     * бросалось в глаза всем, кто пришёл с мода, и мешало сравнивать замеры.
+     * <p>This used to be {@code Bukkit.getTPS()[0]}, which is a <b>different number</b>:
+     * Bukkit's is a one-minute rolling average, sluggish and barely moving on a short lag
+     * spike. Carpet shows the instantaneous {@code 1000 / max(target mspt, actual mspt)} —
+     * how fast the server is running right now. The discrepancy was obvious to anyone
+     * arriving from the mod, and it got in the way of comparing measurements.
      *
-     * <p>Отсюда же учёт {@code /tick}: при заморозке TPS ноль, при спринте снят потолок.
+     * <p>Hence also the {@code /tick} handling: TPS is zero while frozen, and the ceiling is
+     * lifted while sprinting.
      */
     private static Component tpsLine() {
         final net.minecraft.server.MinecraftServer server =
@@ -119,8 +121,8 @@ public final class LabHud {
     }
 
     /**
-     * Локальный мобкап. По умолчанию одна строка: ник и кап монстров.
-     * Опция {@code full} добавляет строку с неудачными попытками.
+     * The local mobcap. One line by default: name and monster cap. The {@code full} option adds
+     * a line with the failed attempts.
      */
     private static List<Component> mobcapLines(final Player viewer, final String option) {
         boolean full = false;
@@ -146,9 +148,9 @@ public final class LabHud {
         final boolean local = MobcapService.perPlayerEnabled(level);
         final MobcapService.MonsterCap cap = MobcapService.monsterCap(handle, level, local);
 
-        // Грамматика Carpet: «текущее / предел», текущее по тепловой шкале, предел —
-        // цветом категории. Содержимое при этом наше: у Carpet кап мировой, у нас
-        // персональный, и в этом весь смысл стенда.
+        // Carpet's grammar: "current / limit", the current value on the heat scale and the
+        // limit in the category colour. The content is ours, though: Carpet's cap is world-wide,
+        // ours is per-player, and that is the whole point of this lab.
         Component head = Msg.c(
             "w " + target.getName() + "  ",
             Msg.heatmap(cap.effective(), cap.limit()) + " " + cap.counted(),
@@ -158,8 +160,8 @@ public final class LabHud {
             head = head.append(Msg.c("gi  global"));
         }
         if (LabGhost.isGhost(target)) {
-            // На нашем ядре наблюдатель действительно вне переписи — число ниже честное.
-            // На чистом Paper он в перепись попадает, и это надо видеть в строке.
+            // On our core the observer really is outside the census, so the number below is
+            // honest. On stock Paper they are counted, and the line has to say so.
             head = LabGhost.full()
                 ? head.append(Msg.c("c  ghost"))
                 : head.append(Msg.c("r  ghost(partial)"));
@@ -168,9 +170,9 @@ public final class LabHud {
             return List.of(head);
         }
 
-        // Строка full короткая намеренно: она висит в табе постоянно, рядом с другими
-        // подписками, и каждое лишнее слово вытесняет полезное. «+12 backoff → 17/5»
-        // читается не хуже фразы, а места занимает втрое меньше.
+        // The full line is deliberately short: it sits in the tab list permanently, next to
+        // other subscriptions, and every extra word crowds out something useful. "+12 backoff
+        // -> 17/5" reads no worse than a sentence and takes a third of the space.
         Component extra = Component.text("  +", NamedTextColor.DARK_GRAY)
             .append(Component.text(cap.backoff(),
                 cap.backoff() > 0 ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY))
@@ -192,7 +194,7 @@ public final class LabHud {
         return List.of(head, extra);
     }
 
-    /** Счётчик воронки. Одна строка на цвет; {@code full} добавляет разбивку. */
+    /** A hopper counter. One line per colour; {@code full} adds the item breakdown. */
     private static List<Component> counterLines(final Player viewer, final String option) {
         boolean full = false;
         String colourName = null;
@@ -232,12 +234,12 @@ public final class LabHud {
         return out;
     }
 
-    /** Спавн: где останавливаются попытки. Подробности — {@link SpawnView}. */
+    /** Spawns: where the attempts stop. Details in {@link SpawnView}. */
     private static Component spawnLine(final Player viewer, final String option) {
         return SpawnView.line(viewer.getWorld(), option);
     }
 
-    /** Зелёный → жёлтый → красный по заполненности. */
+    /** Green to yellow to red, by how full it is. */
     public static NamedTextColor heat(final double value, final double max) {
         if (max <= 0.0D) {
             return NamedTextColor.DARK_GRAY;
