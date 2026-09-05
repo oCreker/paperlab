@@ -25,6 +25,7 @@ tools there are partial or absent.
 | [**Permissions**](docs/PERMISSIONS.md) | the whole tree, and the four nodes to read literally |
 | [**Client mods**](docs/CLIENT-MODS.md) | ChunkDebug, MiniHUD, Litematica, Tweakeroo, Capture & Playback |
 | [**Architecture**](docs/ARCHITECTURE.md) | why two halves, what is in the core, protocol lessons |
+| [**Test plan**](docs/TESTING.md) | the release pass: what is verified, what is not, and the ranked risks |
 | [**Third party**](THIRD-PARTY.md) | what is borrowed and under which terms |
 
 ---
