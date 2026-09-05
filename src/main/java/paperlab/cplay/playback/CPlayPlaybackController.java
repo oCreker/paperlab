@@ -16,8 +16,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import org.bukkit.entity.Player;
 import paperlab.core.CPlayBridge;
+import paperlab.cplay.CPlayService;
 import paperlab.cplay.model.CPlayAssetInfo;
 import paperlab.cplay.model.CPlayAssetType;
+import paperlab.cplay.protocol.CPlayWire;
 import paperlab.cplay.storage.CPlayAssetStore;
 
 public final class CPlayPlaybackController {
@@ -83,6 +85,11 @@ public final class CPlayPlaybackController {
         final SimpleCaptureStream stream = new SimpleCaptureStream(info.getAssetUUID(), region, assetStore);
 
         CPlayBridge.addCaptureStream(level, stream);
+        // Tell the connected clients about it. An asset created by a command is no different
+        // from one created through the mod's own button, but only the latter used to be
+        // announced - so a /capture composition appeared in the mod's table on the next join
+        // and not before.
+        CPlayService.broadcast(CPlayWire.encodeAssetInfoChanged(info), null);
         return true;
     }
 
@@ -94,6 +101,12 @@ public final class CPlayPlaybackController {
             if (stream.getAssetId().equals(assetUUID)) {
                 stream.close();
                 CPlayBridge.removeCaptureStream(level, assetUUID);
+                // close() has just written the frames, so the asset changed: announce it again
+                // or the clients keep showing the moment of creation as the last modification.
+                final CPlayAssetInfo info = assetStore.getAsset(assetUUID);
+                if (info != null) {
+                    CPlayService.broadcast(CPlayWire.encodeAssetInfoChanged(info), null);
+                }
                 return true;
             }
         }
