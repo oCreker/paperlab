@@ -175,7 +175,14 @@ public final class CPlayService implements PluginMessageListener {
                 final UUID assetUUID = CPlayWire.readUUID(buf);
                 final CPlayAssetInfo info = assetStore.getAsset(assetUUID);
                 if (info != null && (info.hasPermission(player) || player.hasPermission(LabPermissions.CPLAY_MANAGE))) {
-                    final byte[] data = assetStore.getAssetData(assetUUID);
+                    byte[] data = assetStore.getAssetData(assetUUID);
+                    // Guard for assets recorded before the frames moved to their own file:
+                    // handing our frame format to the mod makes it read a bogus length and
+                    // drop the connection. Give it a valid empty asset instead.
+                    if (paperlab.cplay.storage.CPlayAssetStore.looksLikeCaptureFrames(data)) {
+                        data = CPlayWire.encodeDefaultAssetFile(info);
+                        assetStore.saveAssetData(assetUUID, data);
+                    }
                     if (data != null) {
                         send(player, CPlayWire.encodeAssetRequestResponseSuccess(data));
                         return;

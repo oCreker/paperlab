@@ -38,7 +38,7 @@ public final class CPlayPlaybackController {
             return false;
         }
 
-        final byte[] data = assetStore.getAssetData(info.getAssetUUID());
+        final byte[] data = assetStore.getCaptureFrames(info.getAssetUUID());
         if (data == null || data.length < 8) {
             if (player != null) {
                 player.sendMessage("§cAsset contains no recorded signal data.");
@@ -252,7 +252,7 @@ public final class CPlayPlaybackController {
             closed = true;
             final byte[] data = serializeFrames(tickFrames);
             if (assetStore != null) {
-                assetStore.saveAssetData(assetId, data);
+                assetStore.saveCaptureFrames(assetId, data);
             }
         }
 
