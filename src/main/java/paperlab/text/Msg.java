@@ -12,7 +12,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.Style;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Порт мини-языка разметки Carpet (его {@code carpet.utils.Messenger}) на Adventure.
@@ -68,12 +67,20 @@ public final class Msg {
                 parts.add(Component.empty());
                 continue;
             }
-            final Component previous = parts.isEmpty() ? null : parts.get(parts.size() - 1);
-            final Component made = fromDesc(text, previous);
-            if (previous == null || made != previous) {
-                parts.add(made);
+            String message = text;
+            if (Character.isWhitespace(message.charAt(0))) {
+                message = "w" + message;
+            }
+            // Служебное поле правит предыдущий кусок, обычное добавляет новый.
+            //
+            // Carpet отличает одно от другого сравнением ссылок: там компоненты
+            // изменяемые, и модификатор возвращает тот же объект. У Adventure они
+            // неизменяемые — ссылка всегда новая, и такая проверка молча дублирует
+            // каждый кусок, к которому привязано событие. Поэтому смотрим на знак.
+            if (!parts.isEmpty() && MODIFIERS.indexOf(message.charAt(0)) >= 0) {
+                parts.set(parts.size() - 1, modify(parts.get(parts.size() - 1), message));
             } else {
-                parts.set(parts.size() - 1, made);
+                parts.add(literal(message));
             }
         }
         Component out = Component.empty();
@@ -97,26 +104,25 @@ public final class Msg {
 
     // ------------------------------------------------------------------- разбор
 
-    private static Component fromDesc(final String raw, final @Nullable Component previous) {
-        String message = raw;
-        if (Character.isWhitespace(message.charAt(0))) {
-            message = "w" + message;
-        }
+    /** Знаки, которые вешают событие на предыдущий кусок вместо добавления текста. */
+    private static final String MODIFIERS = "?!^@&";
+
+    private static Component literal(final String message) {
         final int limit = message.indexOf(' ');
         final String desc = limit >= 0 ? message.substring(0, limit) : message;
         final String body = limit >= 0 ? message.substring(limit + 1) : "";
+        return Component.text(body).style(parseStyle(desc));
+    }
 
-        if (previous == null) {
-            return Component.text(body).style(parseStyle(desc));
-        }
-        // Служебные поля меняют предыдущий кусок, а не добавляют новый.
-        return switch (desc.charAt(0)) {
-            case '?' -> previous.clickEvent(ClickEvent.suggestCommand(message.substring(1)));
-            case '!' -> previous.clickEvent(ClickEvent.runCommand(message.substring(1)));
-            case '^' -> previous.hoverEvent(HoverEvent.showText(c(message.substring(1))));
-            case '@' -> previous.clickEvent(ClickEvent.openUrl(URI.create(message.substring(1)).toString()));
-            case '&' -> previous.clickEvent(ClickEvent.copyToClipboard(message.substring(1)));
-            default -> Component.text(body).style(parseStyle(desc));
+    private static Component modify(final Component previous, final String message) {
+        final String payload = message.substring(1);
+        return switch (message.charAt(0)) {
+            case '?' -> previous.clickEvent(ClickEvent.suggestCommand(payload));
+            case '!' -> previous.clickEvent(ClickEvent.runCommand(payload));
+            case '^' -> previous.hoverEvent(HoverEvent.showText(c(payload)));
+            case '@' -> previous.clickEvent(ClickEvent.openUrl(URI.create(payload).toString()));
+            case '&' -> previous.clickEvent(ClickEvent.copyToClipboard(payload));
+            default -> previous;
         };
     }
 

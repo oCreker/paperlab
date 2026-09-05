@@ -42,8 +42,10 @@ public final class LabLogCommand {
 
     public static LiteralArgumentBuilder<CommandSourceStack> node(final String name) {
         return Commands.literal(name)
-                .requires(source -> source.getSender() instanceof Player
-                    && source.getSender().hasPermission(LabPermissions.LOG))
+                // Консоль команду видит, но получает «For players only» — как в Carpet.
+                // Прятать её из дерева было бы удобнее нам и непонятнее тому, кто ищет
+                // команду в списке и не находит.
+                .requires(source -> source.getSender().hasPermission(LabPermissions.LOG))
                 .executes(ctx -> list(ctx.getSource()))
                 .then(Commands.literal("clear").executes(ctx -> clearAll(ctx.getSource())))
                 .then(
@@ -123,7 +125,10 @@ public final class LabLogCommand {
      * Поэтому подсвечены зелёным <b>все</b> активные, а не одна.
      */
     private static int list(final CommandSourceStack source) {
-        final Player player = (Player) source.getSender();
+        if (!(source.getSender() instanceof final Player player)) {
+            Msg.m(source.getSender(), "w For players only");
+            return 0;
+        }
         Msg.m(player, "w _____________________");
         Msg.m(player, "w Available logging options:");
         for (final LabLogger logger : LabLoggers.all()) {
@@ -200,7 +205,10 @@ public final class LabLogCommand {
     }
 
     private static int toggle(final CommandContext<CommandSourceStack> ctx, final @Nullable String option) {
-        final Player player = (Player) ctx.getSource().getSender();
+        if (!(ctx.getSource().getSender() instanceof final Player player)) {
+            Msg.m(ctx.getSource().getSender(), "w For players only");
+            return 0;
+        }
         final String loggerName = StringArgumentType.getString(ctx, "name");
 
         final LabLogger logger = LabLoggers.get(loggerName);
@@ -231,7 +239,10 @@ public final class LabLogCommand {
     }
 
     private static int clearAll(final CommandSourceStack source) {
-        final Player player = (Player) source.getSender();
+        if (!(source.getSender() instanceof final Player player)) {
+            Msg.m(source.getSender(), "w For players only");
+            return 0;
+        }
         LabLoggers.unsubscribeAll(player.getName());
         LabHud.clear(player);
         Msg.m(player, "gi Unsubscribed from all logs");

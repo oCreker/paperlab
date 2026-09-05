@@ -122,7 +122,9 @@ public final class LabRules {
         "fixed horizontal TNT launch angle, in radians",
         "-1 = vanilla random behaviour; otherwise 0 to 2pi",
         -1.0D,
-        List.of("-1", "0", "1.5707963", "3.1415926", "4.712389"),
+        // Варианты пишутся ровно так, как правило печатает значение: иначе текущее
+        // значение не совпадёт ни с одной кнопкой и к списку добавится дубль вида [-1.0].
+        List.of("-1.0", "0.0", "1.5707963", "3.1415926", "4.712389"),
         DOUBLE,
         PLAIN::apply,
         value -> value == -1.0D || (value >= 0.0D && value < Math.PI * 2.0D)
