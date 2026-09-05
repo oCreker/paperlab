@@ -54,6 +54,30 @@ dependencies {
     testImplementation(fileTree("libs") { include("*.jar") })
 }
 
+// Дифференциальные тесты сверяют нашу кодировку с настоящим кодом клиентских модов:
+// malilib/MiniHUD (jar-ы) и g4mespeed (исходники классов протокола). Ни то, ни другое
+// в репозитории не лежит и лежать не может — чужой код под своими лицензиями,
+// у g4mespeed это вдобавок GPL-2.0, несовместимая с нашей GPL-3.0.
+//
+// Кто хочет их прогнать — кладёт файлы в libs/ сам (см. README, раздел «Сборка»).
+// Без них эти тесты просто не компилируются и исключаются, остальные идут как обычно.
+val vendorJars = fileTree("libs") { include("*.jar") }.files.isNotEmpty()
+val vendorSources = file("libs/src")
+
+sourceSets {
+    test {
+        if (vendorSources.isDirectory) {
+            java.srcDir(vendorSources)
+        } else {
+            java.exclude("paperlab/cplay/protocol/CPlayDifferentialFuzzTest.java")
+        }
+        if (!vendorJars) {
+            java.exclude("paperlab/servux/ServuxHudDifferentialTest.java")
+            java.exclude("paperlab/servux/ServuxEntitiesDifferentialTest.java")
+        }
+    }
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
