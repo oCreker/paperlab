@@ -12,6 +12,7 @@ import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.DiscardedPayload;
 import net.minecraft.resources.Identifier;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
+import paperlab.command.LabPermissions;
 import paperlab.cplay.model.CPlayAssetHandle;
 import paperlab.cplay.model.CPlayAssetInfo;
 import paperlab.cplay.model.CPlayAssetType;
@@ -87,7 +88,7 @@ public final class CPlayService implements PluginMessageListener {
         if (instance == null) return;
 
         Bukkit.getGlobalRegionScheduler().runDelayed(instance.plugin, task -> {
-            if (!player.isOnline()) {
+            if (!player.isOnline() || !allowed(player)) {
                 return;
             }
 
@@ -111,10 +112,15 @@ public final class CPlayService implements PluginMessageListener {
         instance.sessionManager.onPlayerQuit(player);
     }
 
+    /** Пускать ли игрока в канал вообще. */
+    private static boolean allowed(final Player player) {
+        return player.hasPermission(LabPermissions.CPLAY);
+    }
+
     public static void broadcast(final byte[] packet, final Player exclude) {
         if (instance == null) return;
         for (final Player p : Bukkit.getOnlinePlayers()) {
-            if (!p.equals(exclude)) {
+            if (!p.equals(exclude) && allowed(p)) {
                 send(p, packet);
             }
         }
@@ -123,6 +129,12 @@ public final class CPlayService implements PluginMessageListener {
     @Override
     public void onPluginMessageReceived(final String channel, final Player player, final byte[] message) {
         if (!CPlayProtocol.CHANNEL.equals(channel) || message.length < 8) {
+            return;
+        }
+        // Право проверяется на входе в канал, а не только у команд: без этого любой
+        // игрок с модом мог создавать и импортировать ассеты, то есть писать файлы
+        // на сервер, ни разу не получив paperlab.cplay.
+        if (!allowed(player)) {
             return;
         }
 
@@ -162,7 +174,7 @@ public final class CPlayService implements PluginMessageListener {
             case CPlayProtocol.PACKET_CAPL_REQUEST_ASSET -> {
                 final UUID assetUUID = CPlayWire.readUUID(buf);
                 final CPlayAssetInfo info = assetStore.getAsset(assetUUID);
-                if (info != null && (info.hasPermission(player) || player.hasPermission("paperlab.cplay.admin"))) {
+                if (info != null && (info.hasPermission(player) || player.hasPermission(LabPermissions.CPLAY_MANAGE))) {
                     final byte[] data = assetStore.getAssetData(assetUUID);
                     if (data != null) {
                         send(player, CPlayWire.encodeAssetRequestResponseSuccess(data));
@@ -186,7 +198,7 @@ public final class CPlayService implements PluginMessageListener {
                 final CPlayAssetInfo info;
                 if (originalUUID != null) {
                     final CPlayAssetInfo origInfo = assetStore.getAsset(originalUUID);
-                    if (origInfo != null && (origInfo.hasPermission(player) || player.hasPermission("paperlab.cplay.admin"))) {
+                    if (origInfo != null && (origInfo.hasPermission(player) || player.hasPermission(LabPermissions.CPLAY_MANAGE))) {
                         info = assetStore.createDuplicateAsset(handle, name, origInfo, player);
                     } else {
                         return;
@@ -230,7 +242,7 @@ public final class CPlayService implements PluginMessageListener {
                 final boolean removed = buf.readBoolean();
 
                 final CPlayAssetInfo info = assetStore.getAsset(assetUUID);
-                if (info != null && (info.getOwnerUUID().equals(player.getUniqueId()) || player.hasPermission("paperlab.cplay.admin"))) {
+                if (info != null && (info.getOwnerUUID().equals(player.getUniqueId()) || player.hasPermission(LabPermissions.CPLAY_MANAGE))) {
                     if (removed) {
                         info.removeCollaborator(collabUUID);
                     } else {
