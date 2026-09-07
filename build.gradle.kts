@@ -95,8 +95,14 @@ tasks {
     }
 
     processResources {
+        // The version has to be declared an input explicitly. `expand` reads it inside a copy
+        // action, which Gradle does not track, so the task stays UP-TO-DATE across a version
+        // bump and the jar ships the previous number in its manifest while its filename carries
+        // the new one. That shipped once, and only the clean-room boot caught it.
+        val pluginVersion = project.version.toString()
+        inputs.property("pluginVersion", pluginVersion)
         filesMatching("paper-plugin.yml") {
-            expand("version" to project.version)
+            expand("version" to pluginVersion)
         }
     }
 
