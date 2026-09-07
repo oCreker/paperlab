@@ -97,6 +97,21 @@ public final class LabRules {
         value -> null,
         value -> LabRuleState.fillUpdates = value), "creative", "command");
 
+    /**
+     * Whether block updates, neighbour updates, and shape updates occur.
+     * When false, all neighbour updates and physics updates are suppressed.
+     */
+    public static final LabRule<Boolean> BLOCK_UPDATES = register(new LabRule<>(
+        "blockUpdates",
+        "Whether block and neighbour updates occur in the world",
+        "false = disables all neighbour and shape updates",
+        Boolean.TRUE,
+        List.of("true", "false"),
+        BOOLEAN,
+        PLAIN::apply,
+        value -> null,
+        value -> LabRuleState.blockUpdates = value), "creative", "command");
+
     /** Whether our additions to vanilla {@code /tick} apply. The name follows Carpet. */
     public static final LabRule<Boolean> TICK_COMMAND_CARPETFIED = register(new LabRule<>(
         "tickCommandCarpetfied",
@@ -131,6 +146,44 @@ public final class LabRules {
         value -> {
             // Applied by an entity-spawn listener: the constructor has already run, but
             // nothing has read the velocity before the first tick.
+        }), "tnt", "creative");
+
+    /**
+     * Sets the TNT random explosion range to a fixed value.
+     * Set to -1 for default behavior.
+     * Cannot be negative, except for -1.
+     */
+    public static final LabRule<Double> TNT_RANDOM_RANGE = register(new LabRule<>(
+        "tntRandomRange",
+        "sets the tnt random explosion range to a fixed value",
+        "-1 for default behavior; cannot be negative except -1",
+        -1.0D,
+        List.of("-1.0", "0.0", "1.0", "2.0"),
+        DOUBLE,
+        PLAIN::apply,
+        value -> value == -1.0D || value >= 0.0D ? null : "cannot be negative, except for -1",
+        value -> {
+            if (CoreBridge.PRESENT) {
+                LabRuleState.tntRandomRange = value;
+            }
+        }), "tnt", "creative");
+
+    /**
+     * Eliminates random momentum and position offset when items drop from blocks.
+     */
+    public static final LabRule<Boolean> HARDCODE_ITEM_DROPS = register(new LabRule<>(
+        "hardcodeItemDrops",
+        "fixed zero momentum and centered position for dropped items",
+        "ensures deterministic item drops during testing",
+        Boolean.FALSE,
+        List.of("false", "true"),
+        BOOLEAN,
+        PLAIN::apply,
+        value -> null,
+        value -> {
+            if (CoreBridge.PRESENT) {
+                LabRuleState.hardcodeItemDrops = value;
+            }
         }), "tnt", "creative");
 
     /**

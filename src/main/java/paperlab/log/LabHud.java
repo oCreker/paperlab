@@ -77,8 +77,10 @@ public final class LabHud {
         final String name = player.getName();
         final List<Component> lines = new ArrayList<>(4);
 
-        if (LabLoggers.TPS.subscribed(name)) {
-            lines.add(tpsLine());
+        final boolean showTps = LabLoggers.TPS.subscribed(name);
+        final boolean showMspt = LabLoggers.MSPT.subscribed(name);
+        if (showTps || showMspt) {
+            lines.add(tpsLine(player, showTps, showMspt));
         }
         for (final String option : LabLoggers.MOBCAPS.optionsFor(name)) {
             lines.addAll(mobcapLines(player, option));
@@ -104,20 +106,67 @@ public final class LabHud {
      * <p>Hence also the {@code /tick} handling: TPS is zero while frozen, and the ceiling is
      * lifted while sprinting.
      */
-    private static Component tpsLine() {
+    private static Component tpsLine(final Player player, final boolean showTps, final boolean showMspt) {
         final net.minecraft.server.MinecraftServer server =
             ((org.bukkit.craftbukkit.CraftServer) Bukkit.getServer()).getServer();
         final double mspt = server.getAverageTickTimeNanos() / 1_000_000.0D;
         final net.minecraft.server.ServerTickRateManager ticks = server.tickRateManager();
 
-        double tps = 1000.0D / Math.max(ticks.isSprinting() ? 0.0D : ticks.millisecondsPerTick(), mspt);
+        double serverTps = 1000.0D / Math.max(ticks.isSprinting() ? 0.0D : ticks.millisecondsPerTick(), mspt);
         if (ticks.isFrozen()) {
-            tps = 0.0D;
+            serverTps = 0.0D;
         }
-        final String colour = Msg.heatmap(mspt, ticks.millisecondsPerTick());
-        return Msg.c(
-            "g TPS: ", String.format(Locale.US, "%s %.1f", colour, tps),
-            "g  MSPT: ", String.format(Locale.US, "%s %.1f", colour, mspt));
+
+        // Focused zone information
+        paperlab.zone.ZoneModel focusedZone = null;
+        final paperlab.PaperLabPlugin plugin = paperlab.PaperLabPlugin.get();
+        if (plugin != null) {
+            focusedZone = plugin.zoneService().getFocusedZone(player.getUniqueId());
+        }
+
+        double displayTps = serverTps;
+        double targetMspt = ticks.millisecondsPerTick();
+
+        if (focusedZone != null) {
+            boolean frozen = focusedZone.isFrozen();
+            float rate = focusedZone.tickRate();
+            if (paperlab.core.CoreBridge.PRESENT) {
+                final io.papermc.paper.lab.zone.LabTickZone coreZone =
+                    io.papermc.paper.lab.zone.LabTickZones.findZone(focusedZone.name());
+                if (coreZone != null) {
+                    frozen = coreZone.isFrozen();
+                    rate = coreZone.tickRate();
+                }
+            }
+            if (ticks.isFrozen() || frozen) {
+                displayTps = 0.0D;
+            } else {
+                displayTps = rate * (Math.min(20.0D, serverTps) / 20.0D);
+            }
+            targetMspt = 1000.0D / Math.max(0.1D, rate);
+        }
+
+        final String colour = Msg.heatmap(mspt, targetMspt);
+        final List<Object> parts = new ArrayList<>();
+
+        if (focusedZone != null) {
+            parts.add("c " + focusedZone.name() + ": ");
+        }
+
+        if (showTps && showMspt) {
+            parts.add("g TPS: ");
+            parts.add(String.format(Locale.US, "%s %.1f", colour, displayTps));
+            parts.add("g   MSPT: ");
+            parts.add(String.format(Locale.US, "%s %.1f", colour, mspt));
+        } else if (showTps) {
+            parts.add("g TPS: ");
+            parts.add(String.format(Locale.US, "%s %.1f", colour, displayTps));
+        } else if (showMspt) {
+            parts.add("g MSPT: ");
+            parts.add(String.format(Locale.US, "%s %.1f", colour, mspt));
+        }
+
+        return Msg.c(parts.toArray(new Object[0]));
     }
 
     /**
