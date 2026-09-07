@@ -176,7 +176,8 @@ the counter's name.
 /counter scan [radius]        find hoppers nearby  (paperlab.counter.edit)
 ```
 
-Scan radius 1–64, default 16.
+Scan radius 1–64, default 16. `scan` works from the console too, around the command's own
+position: `execute positioned 8 -60 9 run counter scan 4`.
 
 **A hopper caps the counter at 9000 items an hour** — one item per eight ticks, which is a
 property of the hopper and not of the farm. A farm faster than that reads 9000/h and the

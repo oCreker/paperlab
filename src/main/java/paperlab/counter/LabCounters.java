@@ -65,7 +65,9 @@ public final class LabCounters {
 
     /** Hopper check: does it point into a wool block. */
     public static @Nullable DyeColor targetColour(final Block block) {
-        if (!(block.getState() instanceof Hopper)) {
+        // Material, not getState(): this runs for every tracked hopper on every tick, and
+        // getState() would build a block-entity snapshot each time only to throw it away.
+        if (block.getType() != org.bukkit.Material.HOPPER) {
             return null;
         }
         if (!(block.getBlockData() instanceof final org.bukkit.block.data.type.Hopper data)) {
@@ -130,25 +132,32 @@ public final class LabCounters {
                 stale.add(posKey);
                 continue;
             }
-            if (!(block.getState() instanceof final Hopper hopper)) {
+            // getState(false), not getState(): the live block entity rather than a snapshot.
+            //
+            // This was a real defect and a quiet one. With the snapshot, clearing a slot and
+            // calling update() did not reach the world: the hopper kept its items and the same
+            // items were counted again on the next tick, and the next. A hopper holding one
+            // stack reported 1 735 111 items an hour and never emptied. Nothing failed, nothing
+            // was logged - the counter simply multiplied its own contents by 20 every second.
+            //
+            // It hid for as long as it did because the first reading it ever produced, 9000/h,
+            // is also exactly what a vanilla hopper moves. A wrong number that matches the
+            // number you expected is the hardest kind to notice.
+            if (!(block.getState(false) instanceof final Hopper hopper)) {
                 stale.add(posKey);
                 continue;
             }
             final LabCounter counter = of(world, colour);
             final long gameTime = world.getGameTime();
-            boolean changed = false;
-            final ItemStack[] contents = hopper.getInventory().getContents();
+            final org.bukkit.inventory.Inventory inventory = hopper.getInventory();
+            final ItemStack[] contents = inventory.getContents();
             for (int slot = 0; slot < contents.length; slot++) {
                 final ItemStack stack = contents[slot];
                 if (stack == null || stack.getType().isAir()) {
                     continue;
                 }
                 counter.add(stack, gameTime);
-                hopper.getInventory().setItem(slot, null);
-                changed = true;
-            }
-            if (changed) {
-                hopper.update();
+                inventory.setItem(slot, null);
             }
         }
         stale.forEach(TRACKED::remove);

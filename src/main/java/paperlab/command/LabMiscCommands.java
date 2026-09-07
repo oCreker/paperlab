@@ -72,13 +72,14 @@ public final class LabMiscCommands {
         ;
     }
 
+    /**
+     * Scans around the command's own position rather than around a player, so the console can
+     * register counters too: {@code execute positioned 8 -60 9 run counter scan 8}. A bench that
+     * cannot register a counter cannot test one.
+     */
     private static int scan(final CommandSourceStack source, final int radius) {
-        if (!(source.getSender() instanceof final Player player)) {
-            source.getSender().sendMessage(Component.text("players only", NamedTextColor.RED));
-            return 0;
-        }
-        final int found = LabCounters.scan(player.getLocation(), radius);
-        player.sendMessage(Component.text(
+        final int found = LabCounters.scan(source.getLocation(), radius);
+        source.getSender().sendMessage(Component.text(
             "tracked hoppers: " + found + " (total " + LabCounters.trackedCount() + ")",
             NamedTextColor.AQUA));
         return found;

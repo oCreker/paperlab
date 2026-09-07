@@ -171,15 +171,35 @@ been installed alongside it. Florentem ran it on a server with TAB and fixed wha
 | 6.5 | Zero interval gives `null`, not infinity | unit | same |
 | 6.6 | A real farm | client | a hopper into wool reported 9000/h, exactly a hopper's throughput |
 | 6.7 | Output matches Carpet's grammar | bench | `/counter white` |
-| 6.8 | `hopperCountersUnlimitedSpeed` lifts the ceiling | **untested** | a farm above 9000/h must read above 9000/h |
+| 6.8 | `hopperCountersUnlimitedSpeed` lifts the ceiling | measurement | 9000.0/h with the rule off; a 1728-item chest counted out in about a tick with it on |
 | 6.9 | The rule costs nothing when off | code | one volatile read before the wool check |
 | 6.10 | Only wool-facing hoppers are affected | code | `LabHopperCounters.unlimited` |
+| 6.11 | The hopper is actually emptied, once | measurement | one stack in, 64 counted, hopper reads 0 |
+| 6.12 | Nothing is counted twice | measurement | 1728 in the chest, 1727 counted across three runs |
+| 6.13 | `scan` works from the console | bench | `execute positioned 8 -60 9 run counter scan 4` |
 
 **6.6 read 9000 items per hour, and that number was the instrument, not the farm.** One item
 per eight ticks is 2.5 per second is 9000 per hour — a hopper's throughput exactly. Any farm
-above that would have read 9000/h as well, which is why the reading looked so convincing.
-`hopperCountersUnlimitedSpeed` raises the ceiling to about a hopper per tick, and 6.8 is the
-check that has to be repeated on the farm that produced the original figure.
+above that would have read 9000/h as well, which is why the reading looked so convincing. With
+`hopperCountersUnlimitedSpeed` on, the same rig counted a full 1728-item chest out in about a
+tick: the ceiling is now the farm's.
+
+### The counter was multiplying its own contents
+
+Found while testing the rule above, and it had nothing to do with it. `LabCounters.tick()` read
+the hopper through `block.getState()` — a **snapshot**. Clearing a slot on the snapshot and
+calling `update()` did not reach the world: the hopper kept its items, and the same items were
+counted again on the next tick, and the next.
+
+A hopper holding one stack and fed by nothing reported **1 735 111 items an hour** and never
+emptied. Nothing threw, nothing was logged. The fix is `block.getState(false)` — the live block
+entity — and then no `update()` at all.
+
+It survived this long because of how it presents. Point a hopper at wool under a slow feed and
+the first reading is 9000/h, which is exactly right for a vanilla hopper; the error only becomes
+visible once items accumulate faster than they are consumed. **A wrong number that matches the
+number you expected is the hardest kind to notice**, and this project has now produced two of
+them from the same rig.
 
 The plugin's own javadoc still holds: accounting can be a tick off, because a plugin cannot
 intercept `ejectItems`. That is immaterial for comparing rates and would matter for sub-tick
