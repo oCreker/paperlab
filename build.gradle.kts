@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "paperlab"
-version = "1.0.5"
+version = "1.2.0"
 
 repositories {
     mavenCentral()

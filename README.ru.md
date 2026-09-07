@@ -165,7 +165,7 @@ cd ../paperlab && ./gradlew jar
 
 ```
 paperlab-core/paper-server/build/libs/paper-paperclip-26.2.local-SNAPSHOT.jar
-paperlab/build/libs/PaperLab-1.0.5.jar
+paperlab/build/libs/PaperLab-1.2.0.jar
 ```
 
 Paper 26.2 работает в mojang-маппинге, поэтому плагин, собранный против серверного

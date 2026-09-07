@@ -1,9 +1,52 @@
 # Changelog
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-No releases yet; below is what is already in `master`.
 
-## Unreleased
+## 1.2.0 — 2026-09-07
+
+### Added
+- **Tick zones** (`/zone`), merged from Florentem's fork and finished here. A cuboid region
+  with its own tick rate, freeze, step and sprint while the rest of the world keeps running at
+  20 TPS — vanilla `/tick rate 200` accelerates the player along with the farm, a zone does not.
+  Measured at 203 zone ticks per second with the server still at 1.7 ms per tick. Selection
+  wand, particle highlighting, owners and members, persistence in `zones.json`.
+- **Event dumper** (`/zone dump`, `/tick dump`): every scheduled tick, block event, block
+  change, entity tick and piston movement in a region, in the order it happened, with tick and
+  phase.
+- **`hopperCountersUnlimitedSpeed`** — a hopper pointing into a wool counter keeps pulling
+  within the tick and ends it with no cooldown. Without it every counter is capped at 9000 items
+  an hour, which is a hopper's throughput and not the farm's. Measured: 9000.0/h with the rule
+  off, a full 1728-item chest counted out in about a tick with it on. Modelled on
+  Carpet-TIS-Addition's rule of the same name.
+- Rules `blockUpdates`, `tntRandomRange` and `hardcodeItemDrops`; ten rules in total.
+- Wildcard permission groups (`paperlab.log.*`, `servux.*`, `cplay.*`, `rule.*`) with child
+  mappings, so LuckPerms shows the tree.
+- `/zone create <name> <world>` and a focus of the console's own, so zones can be built from a
+  start-up script or RCON. `/counter scan` likewise scans around the command's position rather
+  than a player's.
+
+### Fixed
+- **A counter multiplied its own contents.** `LabCounters.tick()` read the hopper through
+  `block.getState()` — a snapshot — so clearing a slot never reached the world and the same
+  items were counted again every tick. A hopper holding one stack, fed by nothing, reported
+  1 735 111 items an hour and stayed full. Now the live block entity, `getState(false)`.
+- **`/zone step` did not move entities**, and a zone below 20 r/s slowed blocks while entities
+  kept full speed. `LabTickZones.shouldTickEntity` accounts for every zone state and was called
+  from nowhere; `isEntityFrozen` now reads `isFrozen() && !shouldTickNow()`, symmetric with
+  `isBlockFrozen`, and the entity gate in `ServerLevel` consults `shouldTickEntity`.
+- The `CPlayManager.onBlockStateChanged` hook, lost in the fork being merged, is back in patch
+  `0037`: without it a capture records pistons only.
+
+### Documentation
+- `TICK_ZONES.md` in English and Russian, written as documentation rather than a status report.
+- The core's README is English now, with the Russian kept as `README.ru.md`.
+- The test plan carries section 11 (tick zones) and records two things it could not establish:
+  the cost of the zone hooks is below this bench's resolution, and both attempts are written
+  down with their numbers.
+- The block-event loop under playback — the project's top-ranked risk — is settled by argument:
+  every iteration consumes one entry from a finite list, so it cannot spin.
+
+## 1.1.0 — 2026-09-06
 
 ### Added
 - Port of Carpet's markup (`paperlab.text.Msg`): command, rule and logger output now

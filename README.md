@@ -163,7 +163,7 @@ Outputs:
 
 ```
 paperlab-core/paper-server/build/libs/paper-paperclip-26.2.local-SNAPSHOT.jar
-paperlab/build/libs/PaperLab-1.0.5.jar
+paperlab/build/libs/PaperLab-1.2.0.jar
 ```
 
 Paper 26.2 runs on mojang mappings, so a plugin built against the server jar loads
