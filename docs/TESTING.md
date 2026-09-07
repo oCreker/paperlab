@@ -171,7 +171,7 @@ been installed alongside it. Florentem ran it on a server with TAB and fixed wha
 | 6.5 | Zero interval gives `null`, not infinity | unit | same |
 | 6.6 | A real farm | client | a hopper into wool reported 9000/h, exactly a hopper's throughput |
 | 6.7 | Output matches Carpet's grammar | bench | `/counter white` |
-| 6.8 | `hopperCountersUnlimitedSpeed` lifts the ceiling | measurement | 9000.0/h with the rule off; a 1728-item chest counted out in about a tick with it on |
+| 6.8 | `hopperCountersUnlimitedSpeed` lifts the ceiling | measurement | 9000.0/h with the rule off; a 1728-item chest counted out in about a tick with it on; confirmed on a real farm with a live client |
 | 6.9 | The rule costs nothing when off | code | one volatile read before the wool check |
 | 6.10 | Only wool-facing hoppers are affected | code | `LabHopperCounters.unlimited` |
 | 6.11 | The hopper is actually emptied, once | measurement | one stack in, 64 counted, hopper reads 0 |
