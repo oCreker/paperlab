@@ -248,7 +248,7 @@ The newest subsystem and the least exercised.
 | 8.8 | What the editor shows is what plays | code | playback reads the sequence, not the frames |
 | 8.9 | **Editor changes are not persisted** | **gap** | see below |
 | 8.10 | **Signal override on the hot path** | **untested** | `SignalGetter.getSignal`, the early-out |
-| 8.11 | **The block-event loop under playback** | **risk** | see below |
+| 8.11 | The block-event loop under playback | code + bench | terminates by construction, see below; three concurrent playbacks at 1.0 ms/tick |
 | 8.12 | Collaborative session between two clients | **untested** | needs two players with the mod |
 | 8.13 | **Server Settings tab is empty** | **gap** | we advertise Core but never send its packet 6 |
 
@@ -261,12 +261,33 @@ means understanding the mod's delta format, which has not been done.
 `GSServerSettingMapPacket`, and we implement only packet 10 of that extension. Those are
 G4mespeed's own settings and nothing in Capture & Playback depends on them.
 
-**8.11 deserves attention before release.** `onRunBlockEventsLoop` receives the queue size as
-a snapshot parameter rather than re-reading it. Progress is guaranteed only if
-`handleReadySignalEvents` always consumes an event at the current microtick. It looks
-defensible by reading, and playbacks on the bench have not hung, but an infinite loop inside a
-tick would take the server with it — worth exercising deliberately with several signals in one
-tick and with a gap of several microticks.
+**8.11 was the top-ranked risk and is now settled by argument rather than by luck.**
+
+`onRunBlockEventsLoop` replaces vanilla's loop condition, so a loop that never ends takes the
+server with it — a hang, not a crash, which is the worse failure. The inner
+`while (blockEventCount == 0)` sets `blockEventCount` from a snapshot of the queue size that it
+does not re-read, so termination rests entirely on `handleReadySignalEvents` consuming at least
+one event per iteration.
+
+It does, and here is why. Before calling it the loop sets `microtick` to the head event's own
+microtick, and `isEventReady` has exactly three outcomes:
+
+* the head's phase is later than the current one — impossible, `BLOCK_EVENTS` is the last of the
+  two phases and is the phase the loop runs in;
+* both are `BLOCK_EVENTS` — ready iff `microtick >= event.getMicrotick()`, and `microtick` was
+  just set equal to it;
+* the head is `IMMEDIATE` — ready unconditionally.
+
+So the head is always consumed, `frameIndex` only increases, and `signalFrame` is a fixed list
+for the tick. Either the queue is non-empty and the loop exits at once, or the list drains and
+the call returns false. **It cannot spin.**
+
+Confirmed on the bench besides: three playbacks running at once, 1.0 ms per tick, no stall.
+
+One real consequence remains, and it is a fidelity issue rather than a safety one. Because the
+size is a snapshot, block events queued *by* a signal event during the same call are not seen —
+the call returns false and vanilla's loop exits with them still queued, so they run on the next
+tick. A one-tick deferral in a corner case, worth knowing before trusting a replay to the tick.
 
 **8.10 matters for a different reason.** `getSignal` is called on every redstone update in
 the world. The early-out is a static map emptiness check, which should be free — but "should
@@ -471,15 +492,14 @@ rotation; the TAB integration; and Capture & Playback end to end.
 
 ## Known risks, ranked
 
-1. **The block-event loop under playback (8.11)** — an infinite loop inside a tick hangs the
-   server. Highest severity even at low probability.
-2. **The refill loop in `hopperCountersUnlimitedSpeed`** — the same shape of risk, one level
-   down. It ends when the hopper is full, so about 320 rounds; the guard at 4096 exists because
-   that reasoning assumes a container above that does not refill itself. A hopper that hits the
-   guard logs once and undercounts that tick rather than hanging.
-3. **Cost of the signal hook (8.10)** — a hot path in every redstone update, unmeasured.
-4. **Cost of the zone hooks (11.14)** — the gate is claimed to be two volatile reads and has
+1. **The refill loop in `hopperCountersUnlimitedSpeed`** — a loop inside a tick, the same shape
+   as 8.11 was. It ends when the hopper is full, so about 320 rounds; the guard at 4096 exists
+   because that reasoning assumes a container above that does not refill itself. A hopper that
+   hits the guard logs once and undercounts that tick rather than hanging, so the worst case is
+   a wrong number and not a dead server.
+2. **Cost of the signal hook (8.10)** — a hot path in every redstone update, unmeasured.
+3. **Cost of the zone hooks (11.14)** — the gate is claimed to be two volatile reads and has
    no number next to it. Every zone hook sits on a per-entity or per-block-tick path.
-5. **Instrument overhead** — now measured rather than assumed: 0.27 ms per tick for a running
+4. **Instrument overhead** — now measured rather than assumed: 0.27 ms per tick for a running
    playback under a heavy redstone load. Small, but not zero, and it argues against leaving a
    playback running while measuring something else.
