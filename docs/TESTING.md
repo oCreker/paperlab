@@ -123,7 +123,7 @@ instrument.
 
 | # | Check | Level | How |
 |---|---|---|---|
-| 4.1 | Six rules listed, categories work | bench | `/carpet list`, `/carpet list experimental` |
+| 4.1 | Ten rules listed, categories work | bench | `/carpet list`, `/carpet list experimental` |
 | 4.2 | A set does not survive a restart | bench | set, restart, `/carpet list` |
 | 4.3 | `setDefault` does survive | bench | same with setDefault |
 | 4.4 | `removeDefault` clears it | bench | and `/carpet list defaults` is empty |
@@ -171,11 +171,19 @@ been installed alongside it. Florentem ran it on a server with TAB and fixed wha
 | 6.5 | Zero interval gives `null`, not infinity | unit | same |
 | 6.6 | A real farm | client | a hopper into wool reported 9000/h, exactly a hopper's throughput |
 | 6.7 | Output matches Carpet's grammar | bench | `/counter white` |
+| 6.8 | `hopperCountersUnlimitedSpeed` lifts the ceiling | **untested** | a farm above 9000/h must read above 9000/h |
+| 6.9 | The rule costs nothing when off | code | one volatile read before the wool check |
+| 6.10 | Only wool-facing hoppers are affected | code | `LabHopperCounters.unlimited` |
 
-6.6 was the oldest debt in the project and is now closed: a hopper into wool reported 9000
-items per hour, which is exactly what a hopper moves — one item per 8 ticks. The plugin's own
-javadoc still holds, though: accounting can be a tick off, because a plugin cannot intercept
-`ejectItems`. That is immaterial for comparing rates and would matter for sub-tick work.
+**6.6 read 9000 items per hour, and that number was the instrument, not the farm.** One item
+per eight ticks is 2.5 per second is 9000 per hour — a hopper's throughput exactly. Any farm
+above that would have read 9000/h as well, which is why the reading looked so convincing.
+`hopperCountersUnlimitedSpeed` raises the ceiling to about a hopper per tick, and 6.8 is the
+check that has to be repeated on the farm that produced the original figure.
+
+The plugin's own javadoc still holds: accounting can be a tick off, because a plugin cannot
+intercept `ejectItems`. That is immaterial for comparing rates and would matter for sub-tick
+work.
 
 ---
 
@@ -339,15 +347,64 @@ measurement that cannot be wrong is not a measurement.
 
 ---
 
+## 11. Tick zones
+
+| # | Check | Level | Result |
+|---|---|---|---|
+| 11.1 | A frozen zone holds entities | measurement | TNT fuse 80 → 80 over four seconds |
+| 11.2 | A frozen zone holds blocks and fluids | measurement | water did not spread |
+| 11.3 | Unfreezing resumes rather than resets | measurement | 80 → 60 → 20, exactly 20/s |
+| 11.4 | The rest of the world is untouched | measurement | 100 blocks away, water flowed in the same tick |
+| 11.5 | `rate 200` accelerates the zone | measurement | fuse 3800 → 3190 over 3 s ≈ **203 zone ticks/s** |
+| 11.6 | The world pays little for it | measurement | server 1.7 ms/tick, target rate still 20.0 |
+| 11.7 | `step n` advances blocks by exactly n | measurement | water spread on the step and not before |
+| 11.8 | `step n` advances **entities** by exactly n | measurement | was broken, see below; now fuse 80 → 50 on `step 30` |
+| 11.9 | `rate 10` halves entity speed too | measurement | was broken, see below |
+| 11.10 | The dump records order within a tick | bench | 40 ticks, 124 events, phases and sequence numbers |
+| 11.11 | Zone commands work from the console | bench | create with an explicit world, console focus |
+| 11.12 | Two zones, different rates, one world | **untested** | the code allows it; nothing checks it |
+| 11.13 | An entity crossing the border mid-flight | **untested** | which loop ticks it that frame |
+| 11.14 | Cost of the zone hooks with no zones | **untested** | claimed as two volatile reads, no number |
+| 11.15 | The player-facing half | **untested** | wand, highlight, focus redirect of `/tick`, zone permissions |
+
+### The step and rate defect
+
+Worth recording because of how it presented. `/zone step 30` printed "Stepping 30 ticks" and
+the block pipeline advanced correctly — water spread, exactly on the step. A TNT fuse in the
+same zone did not move at all. At `rate 10` the fuse ran at a full 20 per second while the
+blocks around it ran at ten.
+
+The cause was one call that was never made. `LabTickZones.shouldTickEntity` accounts for all
+four zone states; `grep` over `paper-server/patches/` found exactly one occurrence of the name —
+its own declaration. Entity ticking was gated only by `isEntityFrozen`, which read
+`zone.isFrozen()` and knew nothing about a step or a rate.
+
+Two changes: `isEntityFrozen` now reads `zone.isFrozen() && !zone.shouldTickNow()`, symmetric
+with `isBlockFrozen`, which had that second half all along; and the entity gate in
+`ServerLevel.tick` now consults `shouldTickEntity`, with accelerated entities excluded from the
+frozen flag so the client is not told they have stopped.
+
+The lesson is the same one this file keeps recording: a step that silently does half the work
+is worse than a step that errors. The block half worked, which is what made it convincing.
+
+---
+
 ## What is known to be untested
 
 Collected here so it is not lost in the tables above.
 
-1. Editor changes are not persisted (8.9).
-2. An overnight run, memory, `/reload`, and the chunk map under fast flight (10.1, 10.4-10.6, 10.8).
-3. Collaborative sessions between two clients (8.12).
-4. Tweakeroo channel (7.12) — written, never exercised, and not currently needed.
-5. The mod's Server Settings tab (8.13).
+1. The player-facing half of tick zones (11.15) — wand, highlight, the focus redirect of
+   `/tick`, and the zone permissions.
+2. `hopperCountersUnlimitedSpeed` against a real farm (6.8) — the rule that makes a counter
+   measure the farm instead of the hopper, checked only by reading.
+3. Editor changes are not persisted (8.9).
+4. An overnight run, memory, `/reload`, and the chunk map under fast flight (10.1, 10.4-10.6, 10.8).
+5. Two zones at different rates in one world (11.12), and an entity crossing a zone border
+   in flight (11.13).
+6. Cost of the zone hooks with no zones (11.14).
+7. Collaborative sessions between two clients (8.12).
+8. Tweakeroo channel (7.12) — written, never exercised, and not currently needed.
+9. The mod's Server Settings tab (8.13).
 
 Closed since this plan was written: hopper counters against a real farm (a hopper into wool
 reported 9000/h, which is exactly a hopper's throughput); schematic pasting with chests and with
@@ -357,7 +414,13 @@ rotation; the TAB integration; and Capture & Playback end to end.
 
 1. **The block-event loop under playback (8.11)** — an infinite loop inside a tick hangs the
    server. Highest severity even at low probability.
-2. **Cost of the signal hook (8.10)** — a hot path in every redstone update, unmeasured.
-3. **Instrument overhead** — now measured rather than assumed: 0.27 ms per tick for a running
+2. **The refill loop in `hopperCountersUnlimitedSpeed`** — the same shape of risk, one level
+   down. It ends when the hopper is full, so about 320 rounds; the guard at 4096 exists because
+   that reasoning assumes a container above that does not refill itself. A hopper that hits the
+   guard logs once and undercounts that tick rather than hanging.
+3. **Cost of the signal hook (8.10)** — a hot path in every redstone update, unmeasured.
+4. **Cost of the zone hooks (11.14)** — the gate is claimed to be two volatile reads and has
+   no number next to it. Every zone hook sits on a per-entity or per-block-tick path.
+5. **Instrument overhead** — now measured rather than assumed: 0.27 ms per tick for a running
    playback under a heavy redstone load. Small, but not zero, and it argues against leaving a
    playback running while measuring something else.

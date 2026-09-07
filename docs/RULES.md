@@ -29,18 +29,31 @@ it, so that is one click, not a punishment.
 
 | Rule | Vanilla | Categories | Core |
 |---|---|---|---|
+| [`blockUpdates`](#blockupdates) | `true` | creative, command | yes |
 | [`fakePlayerNameSuffix`](#fakeplayernamesuffix) | `none` | bot, creative | yes |
 | [`fillUpdates`](#fillupdates) | `true` | creative, command | yes |
+| [`hardcodeItemDrops`](#hardcodeitemdrops) | `false` | tnt, creative | yes |
 | [`hardcodeTNTangle`](#hardcodetntangle) | `-1.0` | tnt, creative | no |
+| [`hopperCountersUnlimitedSpeed`](#hoppercountersunlimitedspeed) | `false` | counter, creative, survival | yes |
 | [`microTiming`](#microtiming) | `false` | redstone, experimental | partial |
 | [`perWorldTick`](#perworldtick) | `false` | tick, experimental | yes |
 | [`tickCommandCarpetfied`](#tickcommandcarpetfied) | `true` | command, experimental | yes |
+| [`tntRandomRange`](#tntrandomrange) | `-1.0` | tnt, creative | yes |
 
 A rule that needs the core shows as `(needs our core)` on stock Paper and refuses to be
 set: nothing there would read it, and quietly accepting a value while doing nothing
 would be the worst outcome.
 
 ---
+
+### `blockUpdates`
+
+Whether block updates happen at all: neighbour updates, shape updates, physics.
+
+`false` is `fillUpdates` taken to its conclusion — nothing updates anything, wherever the
+change came from. Useful for assembling a contraption block by block without it starting
+itself; ruinous if left on, because a circuit built under it will not run either. It is
+the one rule most worth checking with `/carpet list` before trusting a measurement.
 
 ### `fakePlayerNameSuffix`
 
@@ -70,6 +83,27 @@ time and runs cannot be compared. With a fixed angle the contraption behaves ide
 No core needed: the rule is applied by an entity-spawn listener — the constructor has
 already run, but nothing has read the velocity before the first tick.
 
+### `hopperCountersUnlimitedSpeed`
+
+Whether a hopper pointing into a wool counter ignores its transfer cooldown.
+
+A vanilla hopper moves one item every eight ticks: 2.5 per second, **9000 per hour**. That
+ceiling belongs to the hopper, not to the farm, and it sits below most farms worth
+measuring — so a counter fed through an ordinary hopper reports 9000/h for a farm making
+9000/h and for one making ten times that. The number is plausible, steady, and about the
+instrument.
+
+With the rule on, a counter hopper keeps pulling within the same tick until it is full or
+the container above is empty, and ends the tick with no cooldown. The plugin empties it on
+the next tick, so the sustained ceiling becomes a hopper per tick — about 320 items — which
+no farm reaches.
+
+Only hoppers pointing into wool are affected, so the cost stays with the counters. A hopper
+that points into wool without being a registered counter loses its cooldown too, fills up,
+and then stops, as a full hopper does in vanilla.
+
+Modelled on Carpet-TIS-Addition's rule of the same name.
+
 ### `microTiming`
 
 Enables redstone microtiming collection for `/log microtiming`.
@@ -92,6 +126,21 @@ nether does not stop the overworld. `false` keeps every world synchronised with 
 overworld, as in vanilla.
 
 Useful when a long run is going in one world and something has to be built in another.
+
+### `tntRandomRange`
+
+Fixes the random component of an explosion's radius to a chosen value; `-1` keeps vanilla
+randomness.
+
+Together with `hardcodeTNTangle` this makes an explosion reproducible: same crater, same
+scatter, run after run. Two runs that differ then differ because of the change under test.
+
+### `hardcodeItemDrops`
+
+Drops items with zero momentum from the centre of the block instead of a random push.
+
+Removes one source of variance from a drop test: with it on, where an item lands is a
+function of the contraption and not of the tick's random seed.
 
 ### `tickCommandCarpetfied`
 

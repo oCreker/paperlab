@@ -187,6 +187,38 @@ public final class LabRules {
         }), "tnt", "creative");
 
     /**
+     * Takes the transfer cooldown off hoppers pointing into a wool counter.
+     *
+     * <p><b>Why a lab needs this.</b> A vanilla hopper moves one item every eight ticks: 2.5 per
+     * second, 9000 per hour. That ceiling belongs to the hopper, not to the farm, and it sits
+     * below most farms worth measuring — so a counter fed through an ordinary hopper reports
+     * 9000/h for a farm making 9000/h and for one making ten times that. The reading is
+     * plausible, stable, and about the instrument.
+     *
+     * <p>With the rule on, a counter hopper keeps pulling inside the same tick until it is full
+     * or the container above is empty, and ends the tick with no cooldown. The plugin empties it
+     * on the next tick, so the sustained ceiling becomes a hopper per tick — about 320 items —
+     * which no farm reaches.
+     *
+     * <p>Only hoppers that point into wool are affected, so the cost is confined to counters.
+     * Modelled on Carpet-TIS-Addition's rule of the same name.
+     */
+    public static final LabRule<Boolean> HOPPER_COUNTERS_UNLIMITED_SPEED = register(new LabRule<>(
+        "hopperCountersUnlimitedSpeed",
+        "hoppers pointing into a wool counter ignore the transfer cooldown",
+        "lifts the 2.5 items/s hopper ceiling that otherwise caps every counter at 9000/h",
+        Boolean.FALSE,
+        List.of("false", "true"),
+        BOOLEAN,
+        PLAIN::apply,
+        value -> null,
+        value -> {
+            if (CoreBridge.PRESENT) {
+                LabRuleState.hopperCountersUnlimitedSpeed = value;
+            }
+        }), "counter", "creative", "survival");
+
+    /**
      * Enables collection and output of redstone microtiming (/log microtiming).
      *
      * <p>As in Carpet-TIS-Addition, the microTiming rule activates trackers for components

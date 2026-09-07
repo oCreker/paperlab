@@ -181,6 +181,11 @@ spawn ambient  cap 0 · passes 113311 · position 479805 · plugin 0 · spawned 
 
 Радиус сканирования 1–64, по умолчанию 16.
 
+**Воронка ограничивает счётчик 9000 предметами в час** — один предмет за восемь тиков, и это
+свойство воронки, а не фермы. Ферма быстрее этого покажет 9000/ч, и число ничего не скажет.
+Перед измерением чего-то быстрого включай `hopperCountersUnlimitedSpeed`, см.
+[RULES.md](RULES.md#hoppercountersunlimitedspeed).
+
 ---
 
 ## `/player` — боты
@@ -255,8 +260,43 @@ spawn ambient  cap 0 · passes 113311 · position 479805 · plugin 0 · spawned 
 
 `toggle` существует ради клавиши: `freeze` и `unfreeze` на одну кнопку не повесить.
 
+```
+/tick dump [тиков]              дамп событий по всему миру
+/tick dump area <x1> <y1> <z1> <x2> <y2> <z2> <тиков>
+/tick dump zone <имя> [тиков]
+/tick dump status | stop
+/tick zone ...                  то же дерево, что /zone
+```
+
 Доступность узлов управляется правилом `tickCommandCarpetfied`. Выключение не убирает
 их из дерева, а делает недоступными — как в Carpet.
+
+Когда зона в фокусе, `/tick rate`, `/tick freeze`, `/tick toggle`, `/tick step`,
+`/tick warp` и `/tick query` действуют на неё, а не на сервер.
+
+---
+
+## `/zone` — тиковые зоны
+
+Кубоидная область, которая тикает со своей частотой, пока остальной мир идёт как обычно.
+Полное описание: [TICK_ZONES.md](TICK_ZONES.md).
+
+```
+/zone list
+/zone create <имя> [мир]        из консоли мир обязателен
+/zone focus <имя> · unfocus
+/zone box add [x1 y1 z1 x2 y2 z2]     без координат — палочка выделения
+/zone rate <имя> <частота>      от 0.1 до 10000
+/zone freeze <имя> · unfreeze <имя>
+/zone step <имя> <тиков>        прошагать замороженную зону ровно на n
+/zone sprint <имя> <тиков>
+/zone dump <имя> <тиков>
+/zone highlight zone|box <n...>|off
+/zone member add|remove <игрок>
+```
+
+`/zone`, `/tick zone` и `/carpet zone` — одно дерево. Палочка, `highlight` и
+`cancelselect` требуют игрока, остальное работает из консоли.
 
 ---
 

@@ -21,7 +21,8 @@ tools there are partial or absent.
 | | |
 |---|---|
 | [**Commands**](docs/COMMANDS.md) | full reference: syntax, arguments, behaviour |
-| [**Rules**](docs/RULES.md) | `/carpet`, six rules, and why they do not survive a restart |
+| [**Rules**](docs/RULES.md) | `/carpet`, ten rules, and why they do not survive a restart |
+| [**Tick zones**](docs/TICK_ZONES.md) | a region that ticks at its own rate while the world runs normally |
 | [**Permissions**](docs/PERMISSIONS.md) | the whole tree, and the four nodes to read literally |
 | [**Client mods**](docs/CLIENT-MODS.md) | ChunkDebug, MiniHUD, Litematica, Tweakeroo, Capture & Playback |
 | [**Architecture**](docs/ARCHITECTURE.md) | why two halves, what is in the core, protocol lessons |
@@ -94,8 +95,15 @@ runs at the start of `tickChildren`, before the level phase. Hence the core fork
 loggers in the spirit of Carpet TIS Addition. If TAB is installed, the footer is left
 to it and our subscriptions coexist with its layout.
 
+**Tick zones** — `/zone`. A cuboid region with its own tick rate, freeze, step and sprint,
+while the rest of the world keeps running at 20 TPS. Vanilla `/tick rate 200` accelerates the
+player along with the farm; a zone does not. Measured at **203 zone ticks per second** with the
+server still at 1.7 ms per tick. See [TICK_ZONES.md](docs/TICK_ZONES.md).
+
 **Hopper counters** — `/counter`. Point a hopper into wool; the wool colour names the
-counter.
+counter. Mind the hopper's own ceiling of 9000 items an hour — the
+`hopperCountersUnlimitedSpeed` rule lifts it, and without it a fast farm reads 9000/h no
+matter how fast it really is.
 
 **Carpet tools under their own names** — `/perimeterinfo`, `/info block`, `/distance`.
 `perimeterinfo` has one deliberate difference: we walk loaded chunks only and report

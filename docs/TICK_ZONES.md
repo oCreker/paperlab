@@ -1,155 +1,125 @@
-# Отчёт о текущем состоянии подсистемы Tick Zones в PaperLab
+# Tick zones
 
-> **Дата составления:** 7 сентября 2026 г.  
-> **Окружение:** Minecraft 26.2 / Paper fork (`paperlab-core`) + Плагин (`paperlab`)  
-> **Статус сборки:** Релиз **не собирался** (по прямому указанию пользователя). Все изменения закоммичены и отправлены в удалённые репозитории GitHub.
+A cuboid region that ticks at its own rate, independent of the world around it.
 
----
+## Why
 
-## 1. Ссылки на актуальные репозитории и ветки
+Vanilla `/tick` is server-wide. Accelerate a farm with `/tick rate 200` and the player
+accelerates too: you fall ten times faster, your own actions are ten times shorter, and every
+other measurement on the server moves with it. Freeze it and the whole server freezes.
 
-Оба репозитория полностью синхронизированы с GitHub (ветки `feature/carpet-tools`):
+A zone separates the two. The world keeps running at 20 TPS while the region inside the zone
+runs at whatever rate the experiment needs — measured on the bench at 203 zone ticks per second
+with the server still at 1.7 ms per tick. Nothing outside the zone can tell.
 
-| Компонент | Репозиторий | Актуальная ветка | Хеш коммита | Ссылка на ветку GitHub |
-| :--- | :--- | :--- | :--- | :--- |
-| **Ядро** | `paperlab-core` | `feature/carpet-tools` | [`d2e837dc4`](https://github.com/florentem/paperlab-core/commit/d2e837dc4) | [florentem/paperlab-core (branch: feature/carpet-tools)](https://github.com/florentem/paperlab-core/tree/feature/carpet-tools) |
-| **Плагин** | `paperlab` | `feature/carpet-tools` | [`4482e8b`](https://github.com/florentem/paperlab/commit/4482e8b) | [florentem/paperlab (branch: feature/carpet-tools)](https://github.com/florentem/paperlab/tree/feature/carpet-tools) |
+## How it ticks
 
-### Дерево последних коммитов ядра (`paperlab-core`)
-- `d2e837dc4` — `fix(zone): add sprintZone and stepZone delegates, reset spigot primed TNT counter in runOneTick`
-- `48030846b` — `fix(zone): align zoneGameTime initialization and reset accumulator on rate transitions`
-- `c7eb7246c` — `feat(dump): add high-resolution event dump system and carpet tnt/drop rules`
-- `c292e86fe` — `fix(zone): unify tick suppression and vanilla pipeline execution for stepping and frozen zones`
-- `fc2f715d8` — `fix(zone): complete vanilla parity for normal rate zones and clean up zone ticking`
-
-### Дерево последних коммитов плагина (`paperlab`)
-- `4482e8b` — `feat(zone): add direct console /zone rate, freeze, step, sprint commands and blockUpdates rule`
-- `948c152` — `feat(dump): add /tick zone dump command and carpet rules`
-- `d0596df` — `fix(hud, zone): separate tps/mspt hud display, clear highlight on unfocus`
-- `1b14418` — `Sync core zone frozen and tick rate states when saving in ZoneService`
-- `2e22792` — `fix(hud): switch HUD context to focused zone without brackets or duplicate TPS`
-- `1c6057d` — `fix(zone): execute save synchronously if plugin is disabling`
-
----
-
-## 2. Архитектура и реализация Tick Zones
-
-```mermaid
-flowchart TB
-    subgraph Plugin ["PaperLab Plugin (paperlab)"]
-        ZC["ZoneCommands (/zone, /tick zone)"]
-        ZS["ZoneService (Модели, персистентность, выделения)"]
-        CB["CoreBridge & CoreDelegate"]
-        ZC --> ZS
-        ZS --> CB
-    end
-
-    subgraph Core ["PaperLab Core (paperlab-core)"]
-        LTZS["LabTickZones (Реестр зон, пространственный Chunk-индекс)"]
-        LTZ["LabTickZone (Виртуальное время, стейт, сабтик-луп)"]
-        ZDM["ZoneDumpManager (Запись событий микротайминга)"]
-        CB --> LTZS
-        LTZS --> LTZ
-    end
-
-    subgraph ServerLevelHooks ["Хуки в ServerLevel / Level"]
-        T1["onLevelTickStart()"]
-        T2["Level.tick() [Ванильный прогон]"]
-        T3["onLevelTick() -> onWorldTickEnd()"]
-        T4["Sub-tick Loop: runOneTick()"]
-    end
-
-    T1 --> LTZS
-    T2 -.->|shouldTickBlock / isEntityFrozen| LTZS
-    T3 --> LTZ
-    LTZ -->|Если tickRate > 20| T4
-    T4 --> ZDM
-```
-
-### Ключевые компоненты:
-1. **`ZoneModel` / `ZoneBox` (`paperlab`):**
-   - Управление боксами (кубоидами), правами доступа (владелец, участники), сохранение в `plugins/PaperLab/zones.json`.
-   - Визуализация границ зон частицами (`/zone highlight`).
-2. **`LabTickZones` (`paperlab-core`):**
-   - Пространственный индекс по чанкам (`ChunkPos.pack(cx, cz) -> List<LabTickZone>`) для $O(1)$ проверок попадания координат.
-   - Делегирование консольных и командных запросов: `rate`, `freeze`, `unfreeze`, `step`, `sprint`.
-   - Перенаправление команд `/tick` при установленном фокусе (`/zone focus <name>`).
-3. **`LabTickZone` (`paperlab-core`):**
-   - Изолированное виртуальное игровое время (`zoneGameTime`).
-   - Аккумулятор дробных тиков (`timeAccumulator`) для нестандартных частот (например, 10 TPS, 100 TPS, 200 TPS).
-   - Сабтик-луп `runOneTick(ServerLevel)`:
-     - `drainAndRunZoneTicks` для блоков и жидкостей;
-     - `runZoneBlockEvents` для поршней и нотных блоков;
-     - `runZoneEntities` для сущностей внутри зоны с очисткой счетчика `spigotConfig.currentPrimedTnt = 0`;
-     - `runZoneBlockEntities` для тайл-энтити (компараторы, воронки, печи).
-
----
-
-## 3. Сравнение механики: Глобальный `/tick` vs Локальный `/zone`
-
-В ходе серии бенчмарков выявлены фундаментальные различия между глобальным ускорением/заморозкой сервера и локальными зонами:
-
-| Аспект | Глобальный `/tick rate 200` | Зональный `/zone rate <name> 200` |
-| :--- | :--- | :--- |
-| **Серверный мир** | Весь мир тикает со скоростью 200 TPS в реальном времени (по 5 мс на такт). | Сервер работает на стандартных 20 TPS (50 мс на такт). |
-| **Выполнение тиков** | Единый ванильный конвейер для всех чанков мира одновременно. | В конце мирового тика (`onLevelTick`) запускается локальный цикл из 10 сабтиков зоны (`runOneTick`). |
-| **Жидкости и поршни** | Жидкости и поршни тикают синхронно в масштабе всего мира. | Жидкости внутри зоны совершают 10 шагов за 1 мировой кадр. При переходе из заморозки/паузы фазы генерации булыжника и движения поршней могут сдвигаться, если блок булыжника не успевает сформироваться до раскрытия поршня. |
-| **Взаимодействие с игроками** | Игрок двигается и падает в 10 раз быстрее в реальном времени. | Игрок вне зоны или внутри зоны тикает в стандартном темпе сервера (20 TPS), не проваливается сквозь блоки и сохраняет нормальную физику. |
-| **Сущности (TNT)** | TNT взрывается через 80 ванильных тактов (0.4 сек реального времени). | TNT внутри зоны тикает через `runZoneEntities` в каждом сабтике. Счётчик лимита `currentPrimedTnt` сбрасывается перед каждым сабтиком. |
-
----
-
-## 4. Сводка результатов бенчмарка Фермы 1 (Компактный взрывной карьер)
-
-При тестировании Фермы 1 со снятием дампов микротайминга (`ZoneDumpManager`):
+At the start of `ServerLevel.tick` each zone decides how many ticks it owes this frame
+(`onWorldTickStart`), and the vanilla pipeline is gated accordingly: block ticks, fluid ticks,
+block events, block entities and entities inside the zone are skipped when the zone is not due.
+At the end of the world tick, an accelerated zone runs its own sub-tick loop:
 
 ```
-Metric                    | Test 1 (200 rate)  | Test 2 (20 rate)   | Test 3 (warp 400t)
-----------------------------------------------------------------------------------------
-ticks                     | 400                | 400                | 400               
-total_events              | 244 957            | 245 110            | 162 424           
-tnt_spawns                | 39                 | 39                 | 39                
-explosions                | 32                 | 33                 | 33                
-pistons                   | 88 153             | 87 533             | 36 368            
-block_changes             | 112 626            | 112 691            | 84 477            
-destroyed_blocks          | 2 368              | 2 260              | 271               
+runZoneTicks        scheduled block and fluid ticks inside the zone
+runZoneBlockEvents  pistons, note blocks
+runZoneEntities     entities inside, with the primed-TNT counter reset each sub-tick
+runZoneBlockEntities  comparators, hoppers, furnaces
 ```
 
-### Ключевые наблюдения:
-1. **Генерация и дублирование TNT:**
-   - Во всех режимах ферма стабильно генерирует **39 зарядов TNT** за 400 тиков при корректно взведённом редстоун-тактогенераторе.
-2. **Отличие режима Warp/Sprint 400t:**
-   - В режиме спринта сервер прогоняет 400 тактов без задержек реального времени. Если вода/лава не успевает обновить состояния между фазами сдвига блоков, выработка булыжника снижается (271 разрушенный блок против ~2300 в штатном режиме).
-3. **Отличие Zone Rate 200:**
-   - 10 сабтиков в одном мировом тике дают близкую к 20 TPS производительность по блокам (2368 блоков), но с микроскопическим фазовым сдвигом в таймингах поршневой ленты.
+A rate below 20 is paced by a fractional accumulator, so `rate 10` ticks on every second frame
+rather than half-ticking on each. Each zone keeps its own `zoneGameTime`, so scheduled ticks
+inside it line up with its own clock and not the world's.
 
----
+Lookups go through a chunk index (`ChunkPos.pack -> zones`), and every hook starts with a check
+that zones are enabled and at least one exists — two volatile reads on a server with no zones.
 
-## 5. Доступные команды управления зонами
+## Commands
 
-### Консольные команды (RCON / Server Console)
-```bash
-/zone list                               # Список всех зон и их параметров
-/zone create <name>                      # Создать зону
-/zone remove <name>                      # Удалить зону
-/zone rate <name> <rate>                 # Установить частоту тиков зоны (0.1 - 10000.0)
-/zone freeze <name> [true|false]         # Заморозить / разморозить зону
-/zone step <name> <ticks>                # Прошагать N тиков в замороженной зоне
-/zone sprint <name> <ticks>              # Запустить спринт зоны на N тиков
-/zone dump <name> <ticks>                # Записать дамп микротайминга зоны
-/zone dump status                        # Проверить статус активной сессии дампа
-/zone dump stop                          # Остановить запись дампа досрочно
+`/zone`, `/tick zone` and `/carpet zone` are the same tree.
+
+Zones are addressed either by **name** or by **focus**. Focus is per player; the console has a
+focus of its own, so the same commands work from a start-up script or RCON.
+
+```
+/zone list                                 every zone, its boxes, rate and freeze state
+/zone create <name>                         in your own world, owned by you, and focused
+/zone create <name> <world>                  from the console: no owner, not focused
+/zone remove [name]                          the focused one if no name is given
+/zone focus <name>                           subsequent commands act on this zone
+/zone unfocus
+
+/zone box add                                selection wand (snowball): left-click, right-click
+/zone box add <x1> <y1> <z1> <x2> <y2> <z2>  by coordinates, into the focused zone
+/zone box list
+/zone box remove <n|all>
+/zone box cancelselect                       drop the wand without adding a box
+
+/zone highlight zone|box <n...>|off          draw the borders with particles
+
+/zone rate <name> <rate>                     0.1 to 10000
+/zone freeze <name>                          toggles; use unfreeze to be explicit
+/zone unfreeze <name>
+/zone step <name> <ticks>                    advance a frozen zone by exactly n ticks
+/zone sprint <name> <ticks>                  run n ticks as fast as the server can
+/zone dump <name> <ticks>                    write an event dump for the zone
+/zone dump status | stop
+
+/zone member add|remove <player>
 ```
 
-### Игровые команды для игроков (с поддержкой выделения и фокуса)
-```bash
-/zone focus <name>                       # Сфокусироваться на зоне
-/zone unfocus                            # Снять фокус
-/zone box add <x1> <y1> <z1> <x2> <y2> <z2> # Добавить кубоид по координатам
-/zone box list                           # Список кубоидов сфокусированной зоны
-/zone highlight zone|box|off             # Подсветка границ частицами
-/tick rate <rate>                        # (При фокусе) перенаправляется на /zone rate
-/tick freeze / /tick toggle              # (При фокусе) перенаправляется на /zone freeze
-/tick step <ticks>                       # (При фокусе) перенаправляется на /zone step
-/tick warp <ticks>                       # (При фокусе) перенаправляется на /zone sprint
+The wand, `highlight` and `cancelselect` need a real player. Everything else works from the
+console.
+
+With a zone in focus, the vanilla commands redirect to it: `/tick rate`, `/tick freeze`,
+`/tick toggle`, `/tick step`, `/tick warp` and `/tick query` all act on the focused zone
+instead of the server. `paperlab.tick.global` is what allows driving the server-wide tick while
+zones exist; `paperlab.tick.zone` allows zone commands, `paperlab.tick.zone.admin` allows
+driving a zone you are not a member of.
+
+## The dump
+
+`/zone dump <name> <ticks>` writes `dumps/dump_<zone>_<timestamp>.log`: every scheduled tick,
+block event, block change, entity tick and piston movement inside the zone, numbered in the
+order it happened, with the tick and the phase it happened in.
+
 ```
+=== TICK T+5 | Dim: world ===
+  #0001 [SCHEDULED_FLUID_TICKS | FLUID_TICK] minecraft:water at 112, -60, 112
+  #0002 [SCHEDULED_FLUID_TICKS | BLOCK_CHANGE] Block{minecraft:air} -> Block{minecraft:water}[level=1] at 112, -60, 111
+```
+
+`/tick dump` does the same for an area or for the whole world.
+
+## What is measured
+
+From the bench, with the observable being a primed TNT's fuse and the spread of water:
+
+| | |
+|---|---|
+| frozen zone | fuse held at 80 across four seconds; water did not spread |
+| unfrozen | fuse resumed from where it stopped, 20 ticks per second |
+| isolation | 100 blocks from a frozen zone, water flowed in the same tick |
+| `rate 200` | 3800 → 3190 fuse over three seconds ≈ **203 zone ticks per second** |
+| cost of that | server at 1.7 ms per tick, target rate still 20.0 |
+| `step 10` | blocks, fluids and entities advanced by exactly ten ticks |
+
+## Parity and limits
+
+Freezing a zone is not the same as ignoring it. Separate work went into the cases where
+skipping a tick would silently corrupt a measurement rather than simply pause it:
+
+* scheduled ticks inside a frozen zone are **postponed**, not dropped, so a repeater mid-cycle
+  resumes rather than losing its schedule;
+* TNT, explosions, lightning, spawners, ice and snow, and random ticks are all held;
+* players are never frozen, and neither is a vehicle carrying one — you can stand in a frozen
+  zone and walk out of it;
+* an entity in an accelerated zone is kept out of the world's entity tick and ticked in the
+  zone's loop instead, so it is neither ticked twice nor skipped.
+
+Known limits:
+
+* **Two zones with different rates in the same world are untested.** The code allows it.
+* Crossing the border mid-flight — an item or a minecart entering an accelerated zone — changes
+  which loop ticks it on that frame. Sound in principle, unverified.
+* A zone accelerated out of a freeze can shift the phase of a piston sequence by a tick if a
+  block has not finished forming before the piston opens.

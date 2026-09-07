@@ -19,6 +19,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 import paperlab.command.LabPermissions;
 import paperlab.core.CoreBridge;
 
@@ -30,7 +31,21 @@ public final class ZoneCommands {
 
     public static final String HELP = "discrete ticking zones";
 
+    /**
+     * The console's stand-in for a player UUID, so that focus works without a player.
+     *
+     * <p>Focus is stored per player, and every zone-editing command reads it. That left the
+     * console able to list and drive zones but not to build one: no focus, no {@code box add}.
+     * The nil UUID is not a player's and cannot collide with one.
+     */
+    private static final UUID CONSOLE = new UUID(0L, 0L);
+
     private ZoneCommands() {
+    }
+
+    /** Who is acting: a player by their own UUID, anything else as the console. */
+    private static UUID actor(final CommandSender sender) {
+        return sender instanceof final Player player ? player.getUniqueId() : CONSOLE;
     }
 
     /**
@@ -64,7 +79,17 @@ public final class ZoneCommands {
             .then(Commands.literal("create")
                 .then(Commands.argument("name", StringArgumentType.word())
                     .executes(ctx -> executeCreate(ctx.getSource().getSender(), service,
-                        StringArgumentType.getString(ctx, "name")))))
+                        StringArgumentType.getString(ctx, "name"), null))
+                    .then(Commands.argument("world", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            for (final org.bukkit.World world : Bukkit.getWorlds()) {
+                                builder.suggest(world.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> executeCreate(ctx.getSource().getSender(), service,
+                            StringArgumentType.getString(ctx, "name"),
+                            StringArgumentType.getString(ctx, "world"))))))
             .then(Commands.literal("remove")
                 .executes(ctx -> executeRemoveFocused(ctx.getSource().getSender(), service))
                 .then(Commands.argument("name", StringArgumentType.word())
@@ -296,7 +321,17 @@ public final class ZoneCommands {
             .then(net.minecraft.commands.Commands.literal("create")
                 .then(net.minecraft.commands.Commands.argument("name", StringArgumentType.word())
                     .executes(ctx -> executeCreate(ctx.getSource().getBukkitSender(), service,
-                        StringArgumentType.getString(ctx, "name")))))
+                        StringArgumentType.getString(ctx, "name"), null))
+                    .then(net.minecraft.commands.Commands.argument("world", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            for (final org.bukkit.World world : Bukkit.getWorlds()) {
+                                builder.suggest(world.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> executeCreate(ctx.getSource().getBukkitSender(), service,
+                            StringArgumentType.getString(ctx, "name"),
+                            StringArgumentType.getString(ctx, "world"))))))
             .then(net.minecraft.commands.Commands.literal("remove")
                 .executes(ctx -> executeRemoveFocused(ctx.getSource().getBukkitSender(), service))
                 .then(net.minecraft.commands.Commands.argument("name", StringArgumentType.word())
@@ -438,14 +473,46 @@ public final class ZoneCommands {
 
     // --- Execution Logic ---
 
-    private static int executeCreate(final CommandSender sender, final ZoneService service, final String name) {
-        if (!(sender instanceof final Player player)) {
-            sender.sendMessage(Component.text("[Zone] Only players can create zones.", NamedTextColor.RED));
+    /**
+     * Creates a zone.
+     *
+     * <p>{@code worldName} is optional for a player - their own world is used, they become the
+     * owner, and the new zone is focused. From the console it is required and there is no owner:
+     * an ownerless zone is one every holder of {@code paperlab.tick.zone} can drive, which is
+     * what a zone set up from a start-up script or from RCON has to be. Without this path the
+     * console could list and drive zones but not create one, so a headless bench had no way to
+     * get its first zone.
+     */
+    private static int executeCreate(final CommandSender sender, final ZoneService service,
+                                     final String name, final @Nullable String worldName) {
+        if (service.getZone(name) != null) {
+            sender.sendMessage(Component.text("[Zone] A zone named '" + name + "' already exists.", NamedTextColor.RED));
             return 0;
         }
 
-        if (service.getZone(name) != null) {
-            sender.sendMessage(Component.text("[Zone] A zone named '" + name + "' already exists.", NamedTextColor.RED));
+        if (worldName != null) {
+            final org.bukkit.World world = Bukkit.getWorld(worldName);
+            if (world == null) {
+                sender.sendMessage(Component.text("[Zone] No world named '" + worldName + "'.", NamedTextColor.RED));
+                return 0;
+            }
+            final UUID owner = sender instanceof final Player player ? player.getUniqueId() : null;
+            service.createZone(name, world.getName(), owner);
+            if (owner != null) {
+                service.setFocus(owner, name);
+                sender.sendMessage(Component.text("[Zone " + name + "] Created and focused in "
+                    + world.getName() + ".", NamedTextColor.AQUA));
+            } else {
+                sender.sendMessage(Component.text("[Zone " + name + "] Created in " + world.getName()
+                    + ", no owner. Add a box: /zone box add <x1> <y1> <z1> <x2> <y2> <z2>",
+                    NamedTextColor.AQUA));
+            }
+            return 1;
+        }
+
+        if (!(sender instanceof final Player player)) {
+            sender.sendMessage(Component.text("[Zone] From the console, name the world: "
+                + "/zone create " + name + " <world>", NamedTextColor.RED));
             return 0;
         }
 
@@ -491,10 +558,6 @@ public final class ZoneCommands {
 
     private static int executeFocus(final CommandSender sender, final ZoneService service, final String name) {
         final Player player = resolvePlayer(sender);
-        if (player == null) {
-            sender.sendMessage(Component.text("[Zone] Only players can focus zones.", NamedTextColor.RED));
-            return 0;
-        }
 
         final ZoneModel zone = service.getZone(name);
         if (zone == null) {
@@ -502,31 +565,27 @@ public final class ZoneCommands {
             return 0;
         }
 
-        if (!zone.isMember(player.getUniqueId()) && !player.hasPermission(LabPermissions.TICK_ZONE_ADMIN)) {
+        if (player != null && !zone.isMember(player.getUniqueId())
+            && !player.hasPermission(LabPermissions.TICK_ZONE_ADMIN)) {
             sender.sendMessage(Component.text("[Zone] You are not a member of this zone.", NamedTextColor.RED));
             return 0;
         }
 
-        service.setFocus(player.getUniqueId(), name);
+        service.setFocus(actor(sender), name);
         sender.sendMessage(Component.text("[Zone " + name + "] Focused.", NamedTextColor.GREEN));
         return 1;
     }
 
     private static int executeUnfocus(final CommandSender sender, final ZoneService service) {
-        final Player player = resolvePlayer(sender);
-        if (player == null) {
-            sender.sendMessage(Component.text("[Zone] Only players can unfocus.", NamedTextColor.RED));
-            return 0;
-        }
-
-        final String current = service.getFocus(player.getUniqueId());
+        final UUID who = actor(sender);
+        final String current = service.getFocus(who);
         if (current == null) {
             sender.sendMessage(Component.text("[Zone] Not currently focused on any zone.", NamedTextColor.DARK_GRAY));
             return 0;
         }
 
-        service.clearFocus(player.getUniqueId());
-        service.clearHighlight(player.getUniqueId());
+        service.clearFocus(who);
+        service.clearHighlight(who);
         sender.sendMessage(Component.text("[Zone] Unfocused from " + current + ".", NamedTextColor.YELLOW));
         return 1;
     }
@@ -780,18 +839,15 @@ public final class ZoneCommands {
     }
 
     private static ZoneModel requireFocusedZone(final CommandSender sender, final ZoneService service) {
-        if (!(sender instanceof final Player player)) {
-            sender.sendMessage(Component.text("[Zone] You must be a player with a focused zone.", NamedTextColor.RED));
-            return null;
-        }
-
-        final ZoneModel zone = service.getFocusedZone(player.getUniqueId());
+        final ZoneModel zone = service.getFocusedZone(actor(sender));
         if (zone == null) {
             sender.sendMessage(Component.text("[Zone] No zone in focus. Use /tick zone focus <name> first.", NamedTextColor.RED));
             return null;
         }
 
-        if (!zone.isMember(player.getUniqueId()) && !player.hasPermission(LabPermissions.TICK_ZONE_ADMIN)) {
+        if (sender instanceof final Player player
+            && !zone.isMember(player.getUniqueId())
+            && !player.hasPermission(LabPermissions.TICK_ZONE_ADMIN)) {
             sender.sendMessage(Component.text("[Zone] You do not have permission to modify this zone.", NamedTextColor.RED));
             return null;
         }

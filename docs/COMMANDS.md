@@ -178,6 +178,11 @@ the counter's name.
 
 Scan radius 1–64, default 16.
 
+**A hopper caps the counter at 9000 items an hour** — one item per eight ticks, which is a
+property of the hopper and not of the farm. A farm faster than that reads 9000/h and the
+number tells you nothing. Turn on `hopperCountersUnlimitedSpeed` before measuring anything
+brisk; see [RULES.md](RULES.md#hoppercountersunlimitedspeed).
+
 ---
 
 ## `/player` — bots
@@ -254,8 +259,43 @@ vanilla and behaves normally.
 
 `toggle` exists for keybinds: `freeze` and `unfreeze` cannot share a key.
 
+```
+/tick dump [ticks]              event dump for the whole world
+/tick dump area <x1> <y1> <z1> <x2> <y2> <z2> <ticks>
+/tick dump zone <name> [ticks]
+/tick dump status | stop
+/tick zone ...                  the same tree as /zone
+```
+
 Availability of these nodes is governed by the `tickCommandCarpetfied` rule. Turning it
 off does not remove them from the tree, it makes them unavailable — as in Carpet.
+
+With a zone in focus, `/tick rate`, `/tick freeze`, `/tick toggle`, `/tick step`,
+`/tick warp` and `/tick query` all act on that zone instead of the server.
+
+---
+
+## `/zone` — tick zones
+
+A cuboid region that ticks at its own rate while the rest of the world runs normally. Full
+reference: [TICK_ZONES.md](TICK_ZONES.md).
+
+```
+/zone list
+/zone create <name> [world]     world is required from the console
+/zone focus <name> · unfocus
+/zone box add [x1 y1 z1 x2 y2 z2]     no coordinates: selection wand
+/zone rate <name> <rate>        0.1 to 10000
+/zone freeze <name> · unfreeze <name>
+/zone step <name> <ticks>       advance a frozen zone by exactly n
+/zone sprint <name> <ticks>
+/zone dump <name> <ticks>
+/zone highlight zone|box <n...>|off
+/zone member add|remove <player>
+```
+
+`/zone`, `/tick zone` and `/carpet zone` are one tree. The wand, `highlight` and
+`cancelselect` need a player; everything else works from the console.
 
 ---
 

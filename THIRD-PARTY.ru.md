@@ -97,7 +97,7 @@ Minecraft.
 
 | Проект | Лицензия | Что переняли |
 |---|---|---|
-| [Carpet TIS Addition](https://github.com/TISUnion/Carpet-TIS-Addition) | LGPL-3.0 | сама мысль логгеров `microtiming`, `item`, `movement` и разметки блоков красителем |
+| [Carpet TIS Addition](https://github.com/TISUnion/Carpet-TIS-Addition) | LGPL-3.0 | сама мысль логгеров `microtiming`, `item`, `movement`, разметки блоков красителем и правила `hopperCountersUnlimitedSpeed` |
 | [Redstone Multimeter](https://github.com/SpaceWalkerRS/redstone-multimeter-fabric) | MIT | пока ничего: RSMM не реализован |
 
 ---

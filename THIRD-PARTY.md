@@ -95,7 +95,7 @@ The problem statement was adopted, not the implementation. Verified: zero shared
 
 | Project | Licence | What was adopted |
 |---|---|---|
-| [Carpet TIS Addition](https://github.com/TISUnion/Carpet-TIS-Addition) | LGPL-3.0 | the idea of the `microtiming`, `item` and `movement` loggers and of marking blocks with dye |
+| [Carpet TIS Addition](https://github.com/TISUnion/Carpet-TIS-Addition) | LGPL-3.0 | the idea of the `microtiming`, `item` and `movement` loggers, of marking blocks with dye, and of the `hopperCountersUnlimitedSpeed` rule |
 | [Redstone Multimeter](https://github.com/SpaceWalkerRS/redstone-multimeter-fabric) | MIT | nothing yet: RSMM is not implemented |
 
 ---
