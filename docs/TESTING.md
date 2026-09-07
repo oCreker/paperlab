@@ -384,8 +384,47 @@ measurement that cannot be wrong is not a measurement.
 | 11.11 | Zone commands work from the console | bench | create with an explicit world, console focus |
 | 11.12 | Two zones, different rates, one world | **untested** | the code allows it; nothing checks it |
 | 11.13 | An entity crossing the border mid-flight | **untested** | which loop ticks it that frame |
-| 11.14 | Cost of the zone hooks with no zones | **untested** | claimed as two volatile reads, no number |
+| 11.14 | Cost of the zone hooks | measurement | **below this bench's resolution**, see below |
 | 11.15 | The player-facing half | **untested** | wand, highlight, focus redirect of `/tick`, zone permissions |
+
+### What the hooks cost, and why there is no number
+
+Two attempts, both inconclusive, and the second was worse than the first. Recorded because the
+temptation is to publish the difference of the means and call it a result.
+
+The design: three states, alternated so that bench drift cancels — **A** no zones at all, so
+`hasActiveZones` is false and every hook is two volatile reads; **B** a zone exists but far from
+the load, so every hook does the chunk-index lookup and misses; **C** a zone covers the load at
+rate 20, so the lookup hits.
+
+First run, 2646 hoppers and 400 armour stands, 5.6 ms per tick, five rounds of six samples:
+
+| A | B | C |
+|---|---|---|
+| 3.54 ms | 3.98 ms | 3.38 ms |
+
+The spread **within** state A was 3.08 to 4.50 ms — larger than any difference between states —
+and C, where a zone covers the load, came out cheaper than A, where no zone exists at all. That
+cannot be true, so the run measured nothing but the bench.
+
+Second run, load raised to 3000 armour stands and 2646 hoppers (17.3 ms per tick), six rounds of
+eight samples, medians rather than means:
+
+| A | B | C |
+|---|---|---|
+| 20.1 ms | 21.4 ms | 21.1 ms |
+
+Worse. Within-state spread 17.5 to 22.6 ms for A alone, and a steady upward drift across the run.
+A heavier load made the bench noisier rather than the signal clearer.
+
+**What the data does support:** with roughly 8600 hook calls per tick — 3000 entities at two
+lookups each plus 2646 block entities — no difference above about 2 ms per tick was resolvable.
+That is an upper bound of roughly 0.25 µs per call and no lower bound at all. The claim that an
+idle hook is two volatile reads is still only a claim about the code.
+
+Settling it needs a different instrument: a sampling profiler attributing tick time to
+`LabTickZones`, or a quieter machine. `/tick query` is server-wide and this bench drifts by ±20%
+over a minute; it cannot see a sub-percent effect, and no number of samples will change that.
 
 ### The step and rate defect
 
