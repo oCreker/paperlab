@@ -154,6 +154,11 @@ public final class ZoneCommands {
                             IntegerArgumentType.getInteger(ctx, "x2"),
                             IntegerArgumentType.getInteger(ctx, "y2"),
                             IntegerArgumentType.getInteger(ctx, "z2")))))))))))
+            .then(Commands.literal("clock")
+                .then(Commands.literal("on")
+                    .executes(ctx -> executeClock(ctx.getSource().getSender(), service, true)))
+                .then(Commands.literal("off")
+                    .executes(ctx -> executeClock(ctx.getSource().getSender(), service, false))))
             .then(Commands.literal("highlight")
                 .then(Commands.literal("zone")
                     .executes(ctx -> executeHighlightZone(ctx.getSource().getSender(), service)))
@@ -385,6 +390,11 @@ public final class ZoneCommands {
                             IntegerArgumentType.getInteger(ctx, "x2"),
                             IntegerArgumentType.getInteger(ctx, "y2"),
                             IntegerArgumentType.getInteger(ctx, "z2")))))))))))
+            .then(net.minecraft.commands.Commands.literal("clock")
+                .then(net.minecraft.commands.Commands.literal("on")
+                    .executes(ctx -> executeClock(ctx.getSource().getBukkitSender(), service, true)))
+                .then(net.minecraft.commands.Commands.literal("off")
+                    .executes(ctx -> executeClock(ctx.getSource().getBukkitSender(), service, false))))
             .then(net.minecraft.commands.Commands.literal("highlight")
                 .then(net.minecraft.commands.Commands.literal("zone")
                     .executes(ctx -> executeHighlightZone(ctx.getSource().getBukkitSender(), service)))
@@ -798,6 +808,60 @@ public final class ZoneCommands {
         service.removeMemberFromZone(zone, targetUuid);
         sender.sendMessage(Component.text("[Zone " + zone.name() + "] Member " + playerName + " removed.", NamedTextColor.YELLOW));
         return 1;
+    }
+
+    /**
+     * Lends the caller's client the focused zone's clock, or gives the world's back.
+     *
+     * <p>The client has one tick rate and normally it is the world's, which is why a zone's piston
+     * teleports instead of travelling. Borrowing the zone's clock fixes the zone and breaks
+     * everything else, the player's own movement included - so it is a switch rather than a default.
+     */
+    private static int executeClock(final CommandSender sender, final ZoneService service, final boolean on) {
+        if (!(sender instanceof final Player player)) {
+            sender.sendMessage(Component.text("[Zone] Only a player has a client to sync.", NamedTextColor.RED));
+            return 0;
+        }
+        if (!CoreBridge.PRESENT) {
+            sender.sendMessage(Component.text("[Zone] Needs our core.", NamedTextColor.RED));
+            return 0;
+        }
+        if (!on) {
+            ClockDelegate.clear(player);
+            sender.sendMessage(Component.text("[Zone] Your client is back on the world's clock.",
+                NamedTextColor.YELLOW));
+            return 1;
+        }
+        final ZoneModel zone = requireFocusedZone(sender, service);
+        if (zone == null) {
+            return 0;
+        }
+        if (!ClockDelegate.sync(player, zone.name())) {
+            sender.sendMessage(Component.text("[Zone] Zone is not known to the core yet.", NamedTextColor.RED));
+            return 0;
+        }
+        sender.sendMessage(Component.text("[Zone " + zone.name() + "] Your client now runs on this zone's "
+            + "clock. Animations inside the zone are right; everything else, your own movement "
+            + "included, is not. /zone clock off to undo.", NamedTextColor.AQUA));
+        return 1;
+    }
+
+    /** Isolated so the class still loads on stock Paper. */
+    private static final class ClockDelegate {
+        static boolean sync(final Player player, final String zoneName) {
+            final io.papermc.paper.lab.zone.LabTickZone zone =
+                io.papermc.paper.lab.zone.LabTickZones.findZone(zoneName);
+            if (zone == null) {
+                return false;
+            }
+            return io.papermc.paper.lab.zone.LabTickZones.syncClientToZone(
+                ((org.bukkit.craftbukkit.entity.CraftPlayer) player).getHandle(), zone);
+        }
+
+        static void clear(final Player player) {
+            io.papermc.paper.lab.zone.LabTickZones.clearClientClock(
+                ((org.bukkit.craftbukkit.entity.CraftPlayer) player).getHandle());
+        }
     }
 
     private static ZoneModel requireFocusedZone(final CommandSender sender, final ZoneService service) {

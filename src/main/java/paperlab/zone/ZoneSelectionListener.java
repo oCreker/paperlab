@@ -80,6 +80,11 @@ public final class ZoneSelectionListener implements Listener {
         this.zoneService.cancelSelection(player, false);
         this.zoneService.clearHighlight(player.getUniqueId());
         this.zoneService.clearFocus(player.getUniqueId());
+        // A borrowed zone clock must not survive the session: on rejoin the client is told the
+        // world's rate by the join sequence, and a stale entry would put it back out of step.
+        if (paperlab.core.CoreBridge.PRESENT) {
+            io.papermc.paper.lab.zone.LabTickZones.clearClientClock(player.getUniqueId());
+        }
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
