@@ -399,12 +399,18 @@ measurement that cannot be wrong is not a measurement.
 | 11.5 | `rate 200` accelerates the zone | measurement | fuse 3800 → 3190 over 3 s ≈ **203 zone ticks/s** |
 | 11.6 | The world pays little for it | measurement | server 1.7 ms/tick, target rate still 20.0 |
 | 11.7 | `step n` advances blocks by exactly n | measurement | water spread on the step and not before |
-| 11.8 | `step n` advances **entities** by exactly n | measurement | was broken, see below; now fuse 80 → 50 on `step 30` |
-| 11.9 | `rate 10` halves entity speed too | measurement | was broken, see below |
+| 11.8 | `step n` advances **entities** by exactly n | measurement | fuse dropped by exactly 30 on `step 30`, by 1 on `step 1` |
+| 11.9 | A rate below 20 slows the zone | measurement | 10 ticks/s at `rate 10` |
+| 11.16 | A zone at 20 is indistinguishable from open world | measurement | 20.1 vs 20.2 ticks/s |
+| 11.17 | The server's rate does not drag the zone | measurement | server at 40: zone holds 20.2, open world runs 40.4 |
+| 11.18 | A tick scheduled across the border survives | measurement | water flowed out of a 200 r/s zone and on for its full range |
+| 11.19 | Random ticks run inside a zone, at its rate | measurement | 66 vs 65 farmland left at equal rates; 92 of 100 dried at rate 200 |
+| 11.20 | A piston and the slime it pushes stay in step | measurement | identical layout at each of five steps, frozen and stepped together |
 | 11.10 | The dump records order within a tick | bench | 40 ticks, 124 events, phases and sequence numbers |
 | 11.11 | Zone commands work from the console | bench | create with an explicit world, console focus |
 | 11.12 | Two zones, different rates, one world | **untested** | the code allows it; nothing checks it |
 | 11.13 | An entity crossing the border mid-flight | **untested** | which loop ticks it that frame |
+| 11.21 | Precipitation effects in a chunk split by a border | **untested** | the ice and snow gate is per position, the cauldron and lightning-rod paths in `tickPrecipitation` are not |
 | 11.14 | Cost of the zone hooks | measurement | **below this bench's resolution**, see below |
 | 11.15 | The player-facing half | **untested** | wand, highlight, focus redirect of `/tick`, zone permissions |
 
@@ -446,6 +452,33 @@ idle hook is two volatile reads is still only a claim about the code.
 Settling it needs a different instrument: a sampling profiler attributing tick time to
 `LabTickZones`, or a quieter machine. `/tick query` is server-wide and this bench drifts by ±20%
 over a minute; it cannot see a sub-percent effect, and no number of samples will change that.
+
+### Two implementations of one feature
+
+The defects above were symptoms; this was the cause, and it is worth writing down because the
+shape of it is common.
+
+A zone had **two implementations selected by its rate**. `isAccelerated()` meant "faster than
+twenty". Above that the zone ran its own loop on its own clock, `zoneGameTime`. At or below
+twenty it had no loop at all: it was gated on and off inside the world's pipeline, and its
+scheduled ticks stayed stamped on the world's clock. Speeding a zone up and slowing it down were
+not two settings of one mechanism, they were two mechanisms — so of course they behaved
+differently, and of course crossing between them lost work.
+
+On top of that the two clocks shared one queue. A tick's trigger time came from `getGameTime()`,
+which returns the zone's clock for the duration of a sub-tick regardless of *where* the tick is
+being scheduled. A block outside an accelerated zone, told from inside to fire in two ticks, was
+stamped two ticks into the zone's future — hundreds of world ticks away. The world drain never
+reached it. The update was not late; it was gone. That is what "механизм ломался, просто терялось
+обновление" was.
+
+The rate was also defined against the world's frame rather than against time: the accumulator
+added `rate / 20` per frame, so `/tick rate 200` on the server multiplied every zone by ten.
+
+The rewrite replaces all of it with one rule — **a position is ticked by exactly one clock** — and
+one path for every rate. Freezing becomes "the clock does not advance", so the machinery that
+shifted every trigger time in a frozen zone by one per frame is gone. Random ticks, which were
+gated out of the world pass and run nowhere, got the chunk phase they needed.
 
 ### The step and rate defect
 
