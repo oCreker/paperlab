@@ -159,21 +159,10 @@ public final class ZoneCommands {
                     .executes(ctx -> executeHighlightZone(ctx.getSource().getSender(), service)))
                 .then(Commands.literal("off")
                     .executes(ctx -> executeHighlightOff(ctx.getSource().getSender(), service)))
-                .then(Commands.literal("box")
-                    .then(Commands.argument("indices", StringArgumentType.greedyString())
-                        .suggests((ctx, builder) -> {
-                            if (ctx.getSource().getSender() instanceof final Player p) {
-                                final ZoneModel focused = service.getFocusedZone(p.getUniqueId());
-                                if (focused != null) {
-                                    for (int i = 1; i <= focused.boxes().size(); i++) {
-                                        builder.suggest(String.valueOf(i));
-                                    }
-                                }
-                            }
-                            return builder.buildFuture();
-                        })
-                        .executes(ctx -> executeHighlightBoxes(ctx.getSource().getSender(), service,
-                            StringArgumentType.getString(ctx, "indices"))))))
+                .then(Commands.literal("at")
+                    .then(Commands.argument("y", IntegerArgumentType.integer(-2032, 2031))
+                        .executes(ctx -> executeHighlightAt(ctx.getSource().getSender(), service,
+                            IntegerArgumentType.getInteger(ctx, "y"))))))
             .then(Commands.literal("member")
                 .then(Commands.literal("add")
                     .then(Commands.argument("player", StringArgumentType.word())
@@ -401,21 +390,10 @@ public final class ZoneCommands {
                     .executes(ctx -> executeHighlightZone(ctx.getSource().getBukkitSender(), service)))
                 .then(net.minecraft.commands.Commands.literal("off")
                     .executes(ctx -> executeHighlightOff(ctx.getSource().getBukkitSender(), service)))
-                .then(net.minecraft.commands.Commands.literal("box")
-                    .then(net.minecraft.commands.Commands.argument("indices", StringArgumentType.greedyString())
-                        .suggests((ctx, builder) -> {
-                            if (ctx.getSource().getBukkitSender() instanceof final Player p) {
-                                final ZoneModel focused = service.getFocusedZone(p.getUniqueId());
-                                if (focused != null) {
-                                    for (int i = 1; i <= focused.boxes().size(); i++) {
-                                        builder.suggest(String.valueOf(i));
-                                    }
-                                }
-                            }
-                            return builder.buildFuture();
-                        })
-                        .executes(ctx -> executeHighlightBoxes(ctx.getSource().getBukkitSender(), service,
-                            StringArgumentType.getString(ctx, "indices"))))))
+                .then(net.minecraft.commands.Commands.literal("at")
+                    .then(net.minecraft.commands.Commands.argument("y", IntegerArgumentType.integer(-2032, 2031))
+                        .executes(ctx -> executeHighlightAt(ctx.getSource().getBukkitSender(), service,
+                            IntegerArgumentType.getInteger(ctx, "y"))))))
             .then(net.minecraft.commands.Commands.literal("member")
                 .then(net.minecraft.commands.Commands.literal("add")
                     .then(net.minecraft.commands.Commands.argument("player", StringArgumentType.word())
@@ -710,65 +688,49 @@ public final class ZoneCommands {
         return boxes.size();
     }
 
+    /**
+     * Draws the border of the focused zone for everyone, as block displays.
+     *
+     * <p>The rail goes at the caller's feet, because that is the height they are building at. From
+     * the console there is no such height, so it goes at sea level.
+     */
     private static int executeHighlightZone(final CommandSender sender, final ZoneService service) {
-        if (!(sender instanceof final Player player)) {
-            sender.sendMessage(Component.text("[Zone] Only players can enable highlight.", NamedTextColor.RED));
-            return 0;
-        }
-
         final ZoneModel zone = requireFocusedZone(sender, service);
         if (zone == null) {
             return 0;
         }
-
-        service.setHighlightZone(player.getUniqueId(), zone.name());
-        sender.sendMessage(Component.text("[Zone " + zone.name() + "] Highlight enabled for all boxes.", NamedTextColor.AQUA));
+        final int railY = sender instanceof final Player player ? player.getLocation().getBlockY() : 64;
+        final int pieces = service.showOutline(zone, railY);
+        if (pieces == 0) {
+            sender.sendMessage(Component.text("[Zone " + zone.name() + "] Nothing to outline: no boxes yet.",
+                NamedTextColor.RED));
+            return 0;
+        }
+        sender.sendMessage(Component.text("[Zone " + zone.name() + "] Border shown at y=" + railY
+            + " (" + pieces + " markers). Everyone can see it.", NamedTextColor.AQUA));
         return 1;
     }
 
-    private static int executeHighlightBoxes(final CommandSender sender, final ZoneService service, final String indicesStr) {
-        if (!(sender instanceof final Player player)) {
-            sender.sendMessage(Component.text("[Zone] Only players can enable highlight.", NamedTextColor.RED));
-            return 0;
-        }
-
+    /** The same, with the rail at a height of your choosing. */
+    private static int executeHighlightAt(final CommandSender sender, final ZoneService service, final int railY) {
         final ZoneModel zone = requireFocusedZone(sender, service);
         if (zone == null) {
             return 0;
         }
-
-        final Set<Integer> indices = new HashSet<>();
-        final List<Integer> displayedIndices = new ArrayList<>();
-        for (final String token : indicesStr.split("[+, ]+")) {
-            if (!token.isBlank()) {
-                try {
-                    final int userIdx = Integer.parseInt(token.trim());
-                    indices.add(userIdx - 1);
-                    displayedIndices.add(userIdx);
-                } catch (final NumberFormatException ignored) {
-                }
-            }
-        }
-
-        if (indices.isEmpty()) {
-            sender.sendMessage(Component.text("[Zone] No valid box indices specified.", NamedTextColor.RED));
-            return 0;
-        }
-
-        service.setHighlightBoxes(player.getUniqueId(), zone.name(), indices);
-        sender.sendMessage(Component.text("[Zone " + zone.name() + "] Highlight enabled for box(es): "
-            + displayedIndices + ".", NamedTextColor.AQUA));
+        final int pieces = service.showOutline(zone, railY);
+        sender.sendMessage(Component.text("[Zone " + zone.name() + "] Border shown at y=" + railY
+            + " (" + pieces + " markers).", NamedTextColor.AQUA));
         return 1;
     }
 
     private static int executeHighlightOff(final CommandSender sender, final ZoneService service) {
-        if (!(sender instanceof final Player player)) {
-            sender.sendMessage(Component.text("[Zone] Only players can disable highlight.", NamedTextColor.RED));
+        final ZoneModel zone = requireFocusedZone(sender, service);
+        if (zone == null) {
             return 0;
         }
-
-        service.clearHighlight(player.getUniqueId());
-        sender.sendMessage(Component.text("[Zone] Highlight disabled.", NamedTextColor.DARK_GRAY));
+        final int removed = service.hideOutline(zone);
+        sender.sendMessage(Component.text("[Zone " + zone.name() + "] Border hidden (" + removed + " markers).",
+            NamedTextColor.DARK_GRAY));
         return 1;
     }
 

@@ -25,6 +25,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.World;
 import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -40,8 +41,6 @@ import paperlab.core.CoreBridge;
  */
 public final class ZoneService {
 
-    public record HighlightTarget(String zoneName, boolean allBoxes, Set<Integer> boxIndices) {}
-
     private final JavaPlugin plugin;
     private final NamespacedKey wandKey;
     private final Path storagePath;
@@ -50,14 +49,14 @@ public final class ZoneService {
     private final Map<String, ZoneModel> zones = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerFocus = new ConcurrentHashMap<>();
     private final Map<UUID, SelectionSession> sessions = new ConcurrentHashMap<>();
-    private final Map<UUID, HighlightTarget> highlights = new ConcurrentHashMap<>();
-
-    private BukkitTask highlightTask;
+    private final ZoneOutline outline;
+    private final Set<String> outlined = ConcurrentHashMap.newKeySet();
 
     public ZoneService(final JavaPlugin plugin) {
         this.plugin = plugin;
         this.wandKey = new NamespacedKey(plugin, "zone_wand");
         this.storagePath = plugin.getDataFolder().toPath().resolve("zones.json");
+        this.outline = new ZoneOutline(plugin);
     }
 
     public void enable() {
@@ -68,15 +67,13 @@ public final class ZoneService {
 
         this.plugin.getServer().getPluginManager().registerEvents(new ZoneSelectionListener(this), this.plugin);
 
-        // Highlight rendering task: every 10 ticks (0.5s)
-        this.highlightTask = Bukkit.getScheduler().runTaskTimer(this.plugin, this::renderHighlights, 10L, 10L);
+        // A crash can leave outline entities behind. They are non-persistent, so a clean stop takes
+        // them with it, but a kill -9 does not.
+        hideAllOutlines();
     }
 
     public void disable() {
-        if (this.highlightTask != null) {
-            this.highlightTask.cancel();
-            this.highlightTask = null;
-        }
+        hideAllOutlines();
 
         // Restore items for all active selection sessions
         for (final SelectionSession session : this.sessions.values()) {
@@ -121,7 +118,7 @@ public final class ZoneService {
                 CoreDelegate.removeZone(removed.world(), removed.name());
             }
             this.playerFocus.values().removeIf(z -> z.equalsIgnoreCase(name));
-            this.highlights.values().removeIf(h -> h.zoneName().equalsIgnoreCase(name));
+            hideOutline(removed);
             save();
             return true;
         }
@@ -141,21 +138,6 @@ public final class ZoneService {
         if (removed) {
             if (CoreBridge.PRESENT) {
                 CoreDelegate.removeBox(zone.world(), zone.name(), index);
-            }
-            // Adjust any active highlight target box indices
-            for (final HighlightTarget target : this.highlights.values()) {
-                if (target.zoneName().equalsIgnoreCase(zone.name()) && !target.allBoxes()) {
-                    final Set<Integer> updated = new HashSet<>();
-                    for (final int idx : target.boxIndices()) {
-                        if (idx < index) {
-                            updated.add(idx);
-                        } else if (idx > index) {
-                            updated.add(idx - 1);
-                        }
-                    }
-                    target.boxIndices().clear();
-                    target.boxIndices().addAll(updated);
-                }
             }
             save();
         }
@@ -337,117 +319,51 @@ public final class ZoneService {
         return meta != null && meta.getPersistentDataContainer().has(this.wandKey, PersistentDataType.BYTE);
     }
 
-    // --- Highlighting ---
+    // --- Outline ---
 
-    public void setHighlightZone(final UUID playerId, final String zoneName) {
-        this.highlights.put(playerId, new HighlightTarget(zoneName, true, Collections.emptySet()));
+    /**
+     * Shows the border of a zone to everyone, as block displays rather than particles.
+     *
+     * <p>Server-side entities, placed once: two people standing at the same border now see the same
+     * thing, and nothing is sent per tick. See {@link ZoneOutline}.
+     */
+    public int showOutline(final ZoneModel zone, final int railY) {
+        final World world = Bukkit.getWorld(zone.world());
+        if (world == null) {
+            return 0;
+        }
+        this.outlined.add(zone.name().toLowerCase(Locale.ROOT));
+        return this.outline.show(world, zone, railY);
     }
 
-    public void setHighlightBoxes(final UUID playerId, final String zoneName, final Set<Integer> indices) {
-        this.highlights.put(playerId, new HighlightTarget(zoneName, false, indices));
+    public int hideOutline(final ZoneModel zone) {
+        final World world = Bukkit.getWorld(zone.world());
+        this.outlined.remove(zone.name().toLowerCase(Locale.ROOT));
+        return world == null ? 0 : this.outline.hide(world, zone.name());
     }
 
+    public boolean isOutlined(final String zoneName) {
+        return this.outlined.contains(zoneName.toLowerCase(Locale.ROOT));
+    }
+
+    /** Redraws a zone whose shape changed, if its border is currently shown. */
+    public void refreshOutline(final ZoneModel zone, final int railY) {
+        if (isOutlined(zone.name())) {
+            showOutline(zone, railY);
+        }
+    }
+
+    /** Clears every outline this plugin drew, in every world. */
+    public void hideAllOutlines() {
+        for (final World world : Bukkit.getWorlds()) {
+            this.outline.hideAll(world);
+        }
+        this.outlined.clear();
+    }
+
+    /** Kept for callers that used to drop a player's private highlight; outlines are shared now. */
     public void clearHighlight(final UUID playerId) {
-        this.highlights.remove(playerId);
-    }
-
-    public HighlightTarget getHighlight(final UUID playerId) {
-        return this.highlights.get(playerId);
-    }
-
-    private void renderHighlights() {
-        if (this.highlights.isEmpty()) {
-            return;
-        }
-
-        for (final Map.Entry<UUID, HighlightTarget> entry : this.highlights.entrySet()) {
-            final Player player = Bukkit.getPlayer(entry.getKey());
-            if (player == null || !player.isOnline()) {
-                continue;
-            }
-
-            final HighlightTarget target = entry.getValue();
-            final ZoneModel zone = getZone(target.zoneName());
-            if (zone == null || !zone.world().equalsIgnoreCase(player.getWorld().getName())) {
-                continue;
-            }
-
-            final List<ZoneBox> boxes = zone.boxes();
-            if (boxes.isEmpty()) {
-                continue;
-            }
-
-            final List<Integer> renderIndices = new ArrayList<>();
-            if (target.allBoxes()) {
-                for (int i = 0; i < boxes.size(); i++) {
-                    renderIndices.add(i);
-                }
-            } else {
-                for (final int idx : target.boxIndices()) {
-                    if (idx >= 0 && idx < boxes.size()) {
-                        renderIndices.add(idx);
-                    }
-                }
-            }
-
-            for (final int idx : renderIndices) {
-                final ZoneBox box = boxes.get(idx);
-                final Color color = ZoneBox.getDistinctColor(idx);
-                final Particle.DustOptions dust = new Particle.DustOptions(color, 1.2f);
-                renderBoxEdges(player, box, dust);
-            }
-        }
-    }
-
-    private void renderBoxEdges(final Player player, final ZoneBox box, final Particle.DustOptions dust) {
-        final double x1 = box.minX();
-        final double x2 = box.maxX() + 1.0;
-        final double y1 = box.minY();
-        final double y2 = box.maxY() + 1.0;
-        final double z1 = box.minZ();
-        final double z2 = box.maxZ() + 1.0;
-
-        final double maxDim = Math.max(x2 - x1, Math.max(y2 - y1, z2 - z1));
-        final double step = maxDim > 64 ? 2.0 : 1.0;
-
-        // 4 edges parallel to X
-        drawEdge(player, dust, x1, y1, z1, x2, y1, z1, step);
-        drawEdge(player, dust, x1, y2, z1, x2, y2, z1, step);
-        drawEdge(player, dust, x1, y1, z2, x2, y1, z2, step);
-        drawEdge(player, dust, x1, y2, z2, x2, y2, z2, step);
-
-        // 4 edges parallel to Y
-        drawEdge(player, dust, x1, y1, z1, x1, y2, z1, step);
-        drawEdge(player, dust, x2, y1, z1, x2, y2, z1, step);
-        drawEdge(player, dust, x1, y1, z2, x1, y2, z2, step);
-        drawEdge(player, dust, x2, y1, z2, x2, y2, z2, step);
-
-        // 4 edges parallel to Z
-        drawEdge(player, dust, x1, y1, z1, x1, y1, z2, step);
-        drawEdge(player, dust, x2, y1, z1, x2, y1, z2, step);
-        drawEdge(player, dust, x1, y2, z1, x1, y2, z2, step);
-        drawEdge(player, dust, x2, y2, z1, x2, y2, z2, step);
-    }
-
-    private void drawEdge(final Player player, final Particle.DustOptions dust,
-                          final double x1, final double y1, final double z1,
-                          final double x2, final double y2, final double z2,
-                          final double step) {
-        final double dx = x2 - x1;
-        final double dy = y2 - y1;
-        final double dz = z2 - z1;
-        final double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (dist <= 0) {
-            player.spawnParticle(Particle.DUST, x1, y1, z1, 1, 0, 0, 0, 0, dust);
-            return;
-        }
-
-        final double effectiveStep = Math.max(step, dist / 25.0);
-        final int count = (int) Math.ceil(dist / effectiveStep);
-        for (int i = 0; i <= count; i++) {
-            final double f = (double) i / count;
-            player.spawnParticle(Particle.DUST, x1 + dx * f, y1 + dy * f, z1 + dz * f, 1, 0, 0, 0, 0, dust);
-        }
+        // nothing per player any more
     }
 
     // --- Persistence ---
