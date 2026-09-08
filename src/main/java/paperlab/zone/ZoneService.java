@@ -152,6 +152,36 @@ public final class ZoneService {
         save();
     }
 
+    /**
+     * The zone's freeze state as the core has it.
+     *
+     * <p>The state lives in two places and only one of them is the truth. The core holds a
+     * {@code TickRateManager} per zone and ticks by it; the model holds a copy so the value survives
+     * a restart. Anything that <b>changes</b> the state through the core alone - the {@code /tick}
+     * redirect does exactly that - leaves the copy behind, and then the copy gets saved and comes
+     * back wrong on the next boot. So displays read the core, and the copy is only ever storage.
+     */
+    public boolean isFrozenLive(final ZoneModel zone) {
+        if (CoreBridge.PRESENT) {
+            final Boolean live = CoreDelegate.frozen(zone.world(), zone.name());
+            if (live != null) {
+                return live;
+            }
+        }
+        return zone.isFrozen();
+    }
+
+    /** The zone's rate as the core has it. See {@link #isFrozenLive}. */
+    public float tickRateLive(final ZoneModel zone) {
+        if (CoreBridge.PRESENT) {
+            final Float live = CoreDelegate.rate(zone.world(), zone.name());
+            if (live != null) {
+                return live;
+            }
+        }
+        return zone.tickRate();
+    }
+
     public void setZoneFrozen(final ZoneModel zone, final boolean frozen) {
         zone.setFrozen(frozen);
         if (CoreBridge.PRESENT) {
@@ -200,10 +230,26 @@ public final class ZoneService {
 
     // --- Focus Management ---
 
+    /**
+     * Focusing a zone also hands the player's client that zone's clock.
+     *
+     * <p>Focus already decides what {@code /tick} does; the clock is the other half of the same
+     * question, and having to ask for it separately was pointless. The client has one tick rate and
+     * normally it is the world's, which is why a zone's piston teleports rather than travels - on
+     * the zone's clock it is animated properly.
+     *
+     * <p>The cost, worth knowing: that clock drives everything the client simulates, your body
+     * included. Focused on a fast zone you move as many times faster, the server disagrees and
+     * drags you back. Unfocus to walk.
+     */
     public void setFocus(final UUID playerId, final String zoneName) {
         this.playerFocus.put(playerId, zoneName.toLowerCase(Locale.ROOT));
         if (CoreBridge.PRESENT) {
             CoreDelegate.setFocus(playerId, zoneName);
+            final Player player = Bukkit.getPlayer(playerId);
+            if (player != null) {
+                CoreDelegate.syncClock(player, zoneName);
+            }
         }
     }
 
@@ -211,6 +257,12 @@ public final class ZoneService {
         this.playerFocus.remove(playerId);
         if (CoreBridge.PRESENT) {
             CoreDelegate.clearFocus(playerId);
+            final Player player = Bukkit.getPlayer(playerId);
+            if (player != null) {
+                CoreDelegate.clearClock(player);
+            } else {
+                CoreDelegate.clearClock(playerId);
+            }
         }
     }
 
@@ -538,6 +590,36 @@ public final class ZoneService {
 
         static boolean step(final String world, final String name, final int ticks) {
             return io.papermc.paper.lab.zone.LabTickZones.stepZone(name, ticks);
+        }
+
+        static void syncClock(final Player player, final String zoneName) {
+            final io.papermc.paper.lab.zone.LabTickZone zone =
+                io.papermc.paper.lab.zone.LabTickZones.findZone(zoneName);
+            if (zone != null) {
+                io.papermc.paper.lab.zone.LabTickZones.syncClientToZone(
+                    ((org.bukkit.craftbukkit.entity.CraftPlayer) player).getHandle(), zone);
+            }
+        }
+
+        static void clearClock(final Player player) {
+            io.papermc.paper.lab.zone.LabTickZones.clearClientClock(
+                ((org.bukkit.craftbukkit.entity.CraftPlayer) player).getHandle());
+        }
+
+        static void clearClock(final UUID playerId) {
+            io.papermc.paper.lab.zone.LabTickZones.clearClientClock(playerId);
+        }
+
+        static Boolean frozen(final String world, final String name) {
+            final io.papermc.paper.lab.zone.LabTickZone zone =
+                io.papermc.paper.lab.zone.LabTickZones.getZone(world, name);
+            return zone == null ? null : zone.isFrozen();
+        }
+
+        static Float rate(final String world, final String name) {
+            final io.papermc.paper.lab.zone.LabTickZone zone =
+                io.papermc.paper.lab.zone.LabTickZones.getZone(world, name);
+            return zone == null ? null : zone.tickRate();
         }
 
         static boolean sprint(final String world, final String name, final int ticks) {

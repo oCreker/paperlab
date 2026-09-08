@@ -77,6 +77,14 @@ public final class LabHud {
         final String name = player.getName();
         final List<Component> lines = new ArrayList<>(4);
 
+        // A focused zone is shown without asking. Focus changes what /tick does and what your
+        // client's clock is, so it has to be visible somewhere that is always on screen - finding
+        // out from the reply to a command you did not mean to send is how it went wrong before.
+        final Component zone = focusLine(player);
+        if (zone != null) {
+            lines.add(zone);
+        }
+
         final boolean showTps = LabLoggers.TPS.subscribed(name);
         final boolean showMspt = LabLoggers.MSPT.subscribed(name);
         if (showTps || showMspt) {
@@ -106,6 +114,23 @@ public final class LabHud {
      * <p>Hence also the {@code /tick} handling: TPS is zero while frozen, and the ceiling is
      * lifted while sprinting.
      */
+    /** The zone you are focused on, its rate and whether it is frozen, or nothing if none. */
+    private static Component focusLine(final Player player) {
+        final paperlab.PaperLabPlugin plugin = paperlab.PaperLabPlugin.get();
+        if (plugin == null) {
+            return null;
+        }
+        final paperlab.zone.ZoneModel focused = plugin.zoneService().getFocusedZone(player.getUniqueId());
+        if (focused == null) {
+            return null;
+        }
+        final boolean frozen = plugin.zoneService().isFrozenLive(focused);
+        final float rate = plugin.zoneService().tickRateLive(focused);
+        return Msg.c(
+            "g zone ", "c " + focused.name(),
+            "g  ", frozen ? "r frozen" : String.format(Locale.US, "w %.1f r/s", rate));
+    }
+
     private static Component tpsLine(final Player player, final boolean showTps, final boolean showMspt) {
         final net.minecraft.server.MinecraftServer server =
             ((org.bukkit.craftbukkit.CraftServer) Bukkit.getServer()).getServer();
