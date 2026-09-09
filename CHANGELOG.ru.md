@@ -4,7 +4,7 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).
 
-## 1.2.2 — не выпущено
+## 1.2.2 — 2026-09-09
 
 ### Добавлено
 - **`maxTickRate` и `maxSprintTicks`** — потолки на то, что примут `/tick rate`, `/zone rate`,

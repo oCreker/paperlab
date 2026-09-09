@@ -2,7 +2,7 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## 1.2.2 — unreleased
+## 1.2.2 — 2026-09-09
 
 ### Added
 - **`maxTickRate` and `maxSprintTicks`** - ceilings on what `/tick rate`, `/zone rate`,
