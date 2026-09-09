@@ -2,6 +2,17 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.2.2 — unreleased
+
+### Added
+- **`maxTickRate` and `maxSprintTicks`** - ceilings on what `/tick rate`, `/zone rate`,
+  `/tick warp`, `/tick sprint` and `/zone sprint` will accept. Vanilla's rate ceiling is ten
+  thousand and its sprint has no ceiling at all, which on a shared server is one person's typo
+  away from burying it for everyone. Checked in the command rather than in the Brigadier
+  argument, because an argument's range is fixed when the tree is built and a rule is not.
+  Neither changes what a value below the ceiling does, so a measurement taken under a lowered
+  ceiling is the same measurement.
+
 ## 1.2.1 — 2026-09-09
 
 ### Added

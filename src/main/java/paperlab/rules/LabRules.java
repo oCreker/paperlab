@@ -54,6 +54,15 @@ public final class LabRules {
     private static final LabRule.Parser<String> STRING = raw ->
         "none".equalsIgnoreCase(raw) ? "" : raw;
 
+    /**
+     * Whole numbers without the decimal point: a ceiling of 200 reads better than 200.0, and the
+     * displayed value then matches one of the offered options instead of being appended after them.
+     */
+    private static final Function<Object, String> WHOLE = value -> {
+        final double d = ((Number) value).doubleValue();
+        return Double.isFinite(d) && d == Math.rint(d) ? String.valueOf((long) d) : String.valueOf(d);
+    };
+
     private static final Function<Object, String> PLAIN = value -> {
         final String text = String.valueOf(value);
         return text.isEmpty() ? "none" : text;
@@ -217,6 +226,55 @@ public final class LabRules {
                 LabRuleState.hopperCountersUnlimitedSpeed = value;
             }
         }), "counter", "creative", "survival");
+
+    /**
+     * The ceiling on {@code /tick rate} and {@code /zone rate}.
+     *
+     * <p>Vanilla's is ten thousand, and on a server several people share that is one person's
+     * typo away from burying it for everyone. Lowering the rule lowers what the command accepts;
+     * it changes nothing about a rate below the ceiling, so a measurement taken under a lowered
+     * ceiling is the same measurement.
+     *
+     * <p>Applies to the world's clock and to a zone's alike. A zone at two hundred costs the
+     * machine what it costs regardless of who asked.
+     */
+    public static final LabRule<Double> MAX_TICK_RATE = register(new LabRule<>(
+        "maxTickRate",
+        "highest rate /tick rate and /zone rate will accept",
+        "the machine's ceiling, not a mechanic; anything below it behaves exactly as before",
+        10000.0D,
+        List.of("10000", "1000", "200", "100", "20"),
+        DOUBLE,
+        WHOLE::apply,
+        value -> value < 1.0D ? "the ceiling cannot be below 1 r/s" : null,
+        value -> {
+            if (CoreBridge.PRESENT) {
+                LabRuleState.maxTickRate = value;
+            }
+        }), "tick", "command");
+
+    /**
+     * The ceiling on the length of {@code /tick warp}, {@code /tick sprint} and {@code /zone
+     * sprint}.
+     *
+     * <p>A sprint runs as fast as the machine can and answers nobody while it does, so its length
+     * is how long everyone else waits. Vanilla puts no upper bound on it at all and offers
+     * {@code 3d} in the completions, which is 172800 ticks.
+     */
+    public static final LabRule<Double> MAX_SPRINT_TICKS = register(new LabRule<>(
+        "maxSprintTicks",
+        "longest sprint /tick warp, /tick sprint and /zone sprint will accept",
+        "a sprint answers nobody while it runs, so this is how long everyone else can be made to wait",
+        100000.0D,
+        List.of("100000", "24000", "6000", "1200"),
+        DOUBLE,
+        WHOLE::apply,
+        value -> value < 1.0D ? "the ceiling cannot be below 1 tick" : null,
+        value -> {
+            if (CoreBridge.PRESENT) {
+                LabRuleState.maxSprintTicks = (int) Math.min(Integer.MAX_VALUE, Math.max(1.0D, value));
+            }
+        }), "tick", "command");
 
     /**
      * Enables collection and output of redstone microtiming (/log microtiming).

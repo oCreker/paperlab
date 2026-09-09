@@ -904,10 +904,48 @@ public final class ZoneCommands {
         return 1;
     }
 
+    /**
+     * The {@code maxTickRate} ceiling, for the paths that come in as a Bukkit sender.
+     *
+     * <p>The core checks the same rule for {@code /tick}; this is the same decision reached from
+     * the other side of the bridge. Without a core there is no ceiling to enforce.
+     */
+    private static boolean withinRateCeiling(final CommandSender sender, final float rate) {
+        if (!CoreBridge.PRESENT) {
+            return true;
+        }
+        final double max = io.papermc.paper.lab.rules.LabRuleState.maxTickRate;
+        if (rate <= max) {
+            return true;
+        }
+        sender.sendMessage(Component.text(String.format(Locale.US,
+            "[Zone] Rate %.1f is above the maxTickRate ceiling of %.1f. "
+                + "/carpet maxTickRate <value> to raise it.", rate, max), NamedTextColor.RED));
+        return false;
+    }
+
+    /** The {@code maxSprintTicks} ceiling. See {@link #withinRateCeiling}. */
+    private static boolean withinSprintCeiling(final CommandSender sender, final int ticks) {
+        if (!CoreBridge.PRESENT) {
+            return true;
+        }
+        final int max = io.papermc.paper.lab.rules.LabRuleState.maxSprintTicks;
+        if (ticks <= max) {
+            return true;
+        }
+        sender.sendMessage(Component.text(
+            "[Zone] " + ticks + " ticks is above the maxSprintTicks ceiling of " + max
+                + ". /carpet maxSprintTicks <value> to raise it.", NamedTextColor.RED));
+        return false;
+    }
+
     private static int executeRate(final CommandSender sender, final ZoneService service, final String name, final float rate) {
         final ZoneModel zone = service.getZone(name);
         if (zone == null) {
             sender.sendMessage(Component.text("[Zone] Zone '" + name + "' not found.", NamedTextColor.RED));
+            return 0;
+        }
+        if (!withinRateCeiling(sender, rate)) {
             return 0;
         }
         service.setZoneTickRate(zone, rate);
@@ -998,6 +1036,9 @@ public final class ZoneCommands {
         final ZoneModel zone = service.getZone(name);
         if (zone == null) {
             sender.sendMessage(Component.text("[Zone] Zone '" + name + "' not found.", NamedTextColor.RED));
+            return 0;
+        }
+        if (!withinSprintCeiling(sender, ticks)) {
             return 0;
         }
         final boolean success = service.sprintZone(zone, ticks);
