@@ -2,6 +2,40 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.2.1 — 2026-09-09
+
+### Added
+- **`/zone resync`** (also `/tick zone resync`) - pulls a zone's pending scheduled ticks back so
+  the soonest is due now. A repair tool for zones saved by a build that did not persist the clock
+  offset: their ticks are stamped on a clock that no longer exists and never come due. Everything
+  moves by the same amount, so a machine picks up with its own timing intact. Loaded chunks only.
+
+### Changed
+- **`/tick` no longer needs operator level.** A player holding `paperlab.tick.zone` can reach it,
+  because with a zone focused that is the command that drives the zone - shutting them out of it
+  left them with `/zone rate`, the same thing under a worse name. Reaching the command is not
+  permission to move the world's clock: `paperlab.tick.global` still decides that, per subcommand,
+  and it now applies whether or not any zone exists. `/tick query` reads and changes nothing, so it
+  is no longer gated at all.
+
+### Fixed
+- **A zone's machines stood still after every restart, observer stuck lit.** A scheduled tick is
+  saved as a delay from the world's game time and read back as `worldTime + delay`, so it comes
+  back at the same absolute time - on the zone's clock, which is the clock it was stamped
+  against. The zone's clock, though, restarted level with the world's, so every pending tick in
+  it landed as far in the future as the two clocks had drifted apart. The offset between them is
+  now saved in `zones.json` and restored with the zone. It is rewritten on every world save, so
+  a crash recovers with the two still paired.
+- **Handing a zone's ticks back to the world's clock did nothing for accelerated zones.** The
+  handover used vanilla's `LevelChunkTicks.postponeTicks`, which returns early on a delta that is
+  not positive - and a zone that has been running fast is *ahead* of the world, so its delta is
+  negative. Deleting such a zone left every pending tick in it stranded in the world's far
+  future. Replaced with a signed shift that also covers ticks in chunks that are loaded but not
+  yet ticking.
+- Chunk ticks are packed and unpacked against the world's clock explicitly. `getGameTime()`
+  returns the zone's clock while a zone sub-tick is running, and a chunk saved in that window
+  would have had its delays written against one clock and read against another.
+
 ## 1.2.0 — 2026-09-07
 
 ### Added

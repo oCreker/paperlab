@@ -54,7 +54,9 @@ focus of its own, so the same commands work from a start-up script or RCON.
 /zone box remove <n|all>
 /zone box cancelselect                       drop the wand without adding a box
 
-/zone highlight zone|box <n...>|off          draw the borders with particles
+/zone highlight                              draw the chunk borders the zone owns
+/zone highlight at <y>                       at a given height instead of your own
+/zone highlight off
 
 /zone rate <name> <rate>                     0.1 to 10000
 /zone freeze <name>                          toggles; use unfreeze to be explicit
@@ -65,6 +67,8 @@ focus of its own, so the same commands work from a start-up script or RCON.
 /zone dump status | stop
 
 /zone member add|remove <player>
+
+/zone resync [name]                          repair: pull stranded ticks back onto the clock
 ```
 
 The wand, `highlight` and `cancelselect` need a real player. Everything else works from the
@@ -72,9 +76,21 @@ console.
 
 With a zone in focus, the vanilla commands redirect to it: `/tick rate`, `/tick freeze`,
 `/tick toggle`, `/tick step`, `/tick warp` and `/tick query` all act on the focused zone
-instead of the server. `paperlab.tick.global` is what allows driving the server-wide tick while
-zones exist; `paperlab.tick.zone` allows zone commands, `paperlab.tick.zone.admin` allows
-driving a zone you are not a member of.
+instead of the server.
+
+Permissions:
+
+| node | what it opens |
+|---|---|
+| `paperlab.tick.zone` | `/zone`, and `/tick` itself while a zone is focused |
+| `paperlab.tick.global` | the world's own clock: `/tick` with no zone focused |
+| `paperlab.tick.zone.admin` | driving a zone you are not a member of |
+| `paperlab.tick` | the Carpet-style additions: `/tick toggle`, `warp`, `dump` |
+
+`/tick` does not need operator level. Holding `paperlab.tick.zone` is enough to reach it, because
+with a zone focused that is the command that drives the zone; without `paperlab.tick.global` the
+same command refuses to touch the world. `/tick query` is open to anyone who can reach the
+command - it reads and changes nothing.
 
 ## The dump
 
@@ -124,6 +140,14 @@ The rate is a rate in game time, not a multiple of the server's frame, so `/tick
 server does not drag zones along with it. A `/tick warp` does not change the length of a tick,
 only how fast frames are produced, so a zone does follow game time through a warp — which is
 what a region inside a world should do.
+
+The zone's clock survives a restart. Its distance from the world's clock is saved in `zones.json`
+and put back when the zone loads, because a scheduled tick goes to disk as a delay from the
+*world's* game time and comes back at the same absolute time - which is a time on the zone's
+clock. Start the zone level with the world instead and every pending tick in it lands as far in
+the future as the two clocks had drifted apart, which reads in game as a machine that stopped and
+an observer stuck lit.
+
 
 ## Parity
 

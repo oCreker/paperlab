@@ -154,6 +154,19 @@ public final class ZoneCommands {
                             IntegerArgumentType.getInteger(ctx, "x2"),
                             IntegerArgumentType.getInteger(ctx, "y2"),
                             IntegerArgumentType.getInteger(ctx, "z2")))))))))))
+            .then(Commands.literal("resync")
+                .executes(ctx -> executeResync(ctx.getSource().getSender(), service, null))
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .suggests((ctx, builder) -> {
+                        for (final ZoneModel z : service.allZones()) {
+                            if (z.name().toLowerCase(Locale.ROOT).startsWith(builder.getRemainingLowerCase())) {
+                                builder.suggest(z.name());
+                            }
+                        }
+                        return builder.buildFuture();
+                    })
+                    .executes(ctx -> executeResync(ctx.getSource().getSender(), service,
+                        StringArgumentType.getString(ctx, "name")))))
             .then(Commands.literal("highlight")
                 .executes(ctx -> executeHighlightToggle(ctx.getSource().getSender(), service))
                 .then(Commands.literal("off")
@@ -384,6 +397,19 @@ public final class ZoneCommands {
                             IntegerArgumentType.getInteger(ctx, "x2"),
                             IntegerArgumentType.getInteger(ctx, "y2"),
                             IntegerArgumentType.getInteger(ctx, "z2")))))))))))
+            .then(net.minecraft.commands.Commands.literal("resync")
+                .executes(ctx -> executeResync(ctx.getSource().getBukkitSender(), service, null))
+                .then(net.minecraft.commands.Commands.argument("name", StringArgumentType.word())
+                    .suggests((ctx, builder) -> {
+                        for (final ZoneModel z : service.allZones()) {
+                            if (z.name().toLowerCase(Locale.ROOT).startsWith(builder.getRemainingLowerCase())) {
+                                builder.suggest(z.name());
+                            }
+                        }
+                        return builder.buildFuture();
+                    })
+                    .executes(ctx -> executeResync(ctx.getSource().getBukkitSender(), service,
+                        StringArgumentType.getString(ctx, "name")))))
             .then(net.minecraft.commands.Commands.literal("highlight")
                 .executes(ctx -> executeHighlightToggle(ctx.getSource().getBukkitSender(), service))
                 .then(net.minecraft.commands.Commands.literal("off")
@@ -886,6 +912,40 @@ public final class ZoneCommands {
         }
         service.setZoneTickRate(zone, rate);
         sender.sendMessage(Component.text("[Zone " + name + "] Tick rate set to " + rate + " r/s.", NamedTextColor.GREEN));
+        return 1;
+    }
+
+    /**
+     * Pulls a zone's stranded scheduled ticks back onto its clock.
+     *
+     * <p>Only ever needed for zones saved by a build that did not persist the clock offset. Their
+     * ticks are stamped on a clock that no longer exists, sitting as far in the future as the two
+     * clocks had drifted apart, and the machine they belong to never moves again. Everything
+     * shifts by the same amount, so the machine resumes with its own timing intact.
+     */
+    private static int executeResync(final CommandSender sender, final ZoneService service, final String name) {
+        final ZoneModel zone = name == null
+            ? requireFocusedZone(sender, service)
+            : service.getZone(name);
+        if (zone == null) {
+            if (name != null) {
+                sender.sendMessage(Component.text("[Zone] Zone '" + name + "' not found.", NamedTextColor.RED));
+            }
+            return 0;
+        }
+        if (!CoreBridge.PRESENT) {
+            sender.sendMessage(Component.text("Resync requires PaperLab Core.", NamedTextColor.RED));
+            return 0;
+        }
+        final long moved = service.resyncZone(zone);
+        if (moved == 0L) {
+            sender.sendMessage(Component.text("[Zone " + zone.name() + "] Nothing to resync.", NamedTextColor.GRAY));
+            return 1;
+        }
+        sender.sendMessage(Component.text(
+            "[Zone " + zone.name() + "] Pending ticks pulled forward by " + (-moved)
+                + " ticks. Loaded chunks only.",
+            NamedTextColor.GREEN));
         return 1;
     }
 

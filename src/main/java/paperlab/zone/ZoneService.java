@@ -67,6 +67,8 @@ public final class ZoneService {
 
         this.plugin.getServer().getPluginManager().registerEvents(new ZoneSelectionListener(this), this.plugin);
 
+        this.plugin.getServer().getPluginManager().registerEvents(new ZoneSaveListener(this), this.plugin);
+
         // A crash can leave outline entities behind. They are non-persistent, so a clean stop takes
         // them with it, but a kill -9 does not.
         hideAllOutlines();
@@ -84,10 +86,13 @@ public final class ZoneService {
         }
         this.sessions.clear();
 
+        // Order matters. save() reads each zone's clock offset out of the core, so it has to run
+        // while the core still has the zones; the chunks themselves are written after plugins are
+        // disabled, so what lands in zones.json is the offset those chunks were packed against.
         save();
 
         if (CoreBridge.PRESENT) {
-            CoreDelegate.disableCore();
+            CoreDelegate.shutdownCore();
         }
     }
 
@@ -180,6 +185,11 @@ public final class ZoneService {
             }
         }
         return zone.tickRate();
+    }
+
+    /** See {@code ZoneCommands#executeResync}. Returns how far the pending ticks moved. */
+    public long resyncZone(final ZoneModel zone) {
+        return CoreBridge.PRESENT ? CoreDelegate.resync(zone.world(), zone.name()) : 0L;
     }
 
     public void setZoneFrozen(final ZoneModel zone, final boolean frozen) {
@@ -420,7 +430,12 @@ public final class ZoneService {
 
     // --- Persistence ---
 
-    private record SerializedZone(String name, String world, String owner, List<String> members, List<ZoneBox> boxes, boolean frozen, float tickRate) {}
+    private record SerializedZone(String name, String world, String owner, List<String> members, List<ZoneBox> boxes, boolean frozen, float tickRate, long clockOffset) {}
+
+    /** Writes zones.json now. See {@link ZoneSaveListener} for why a world save pulls this. */
+    void saveNow() {
+        save();
+    }
 
     private void save() {
         if (CoreBridge.PRESENT) {
@@ -430,6 +445,7 @@ public final class ZoneService {
                 if (coreZone != null) {
                     zone.setFrozen(coreZone.isFrozen());
                     zone.setTickRate(coreZone.tickRate());
+                    zone.setClockOffset(CoreDelegate.clockOffset(zone.world(), zone.name()));
                 }
             }
         }
@@ -446,7 +462,8 @@ public final class ZoneService {
                 memberList,
                 new ArrayList<>(zone.boxes()),
                 zone.isFrozen(),
-                zone.tickRate()
+                zone.tickRate(),
+                zone.clockOffset()
             ));
         }
 
@@ -495,6 +512,7 @@ public final class ZoneService {
                     if (s.tickRate() > 0) {
                         zone.setTickRate(s.tickRate());
                     }
+                    zone.setClockOffset(s.clockOffset());
                     this.zones.put(zone.name().toLowerCase(Locale.ROOT), zone);
                 }
             }
@@ -511,8 +529,8 @@ public final class ZoneService {
         static void enableCore(final Collection<ZoneModel> savedZones) {
             io.papermc.paper.lab.zone.LabTickZones.setEnabled(true);
             for (final ZoneModel model : savedZones) {
-                final io.papermc.paper.lab.zone.LabTickZone coreZone =
-                    io.papermc.paper.lab.zone.LabTickZones.createZone(model.world(), model.name(), model.owner());
+                final io.papermc.paper.lab.zone.LabTickZone coreZone = io.papermc.paper.lab.zone.LabTickZones
+                    .createZone(model.world(), model.name(), model.owner(), model.clockOffset());
                 for (final UUID m : model.members()) {
                     coreZone.addMember(m);
                 }
@@ -526,8 +544,25 @@ public final class ZoneService {
             }
         }
 
-        static void disableCore() {
-            io.papermc.paper.lab.zone.LabTickZones.setEnabled(false);
+        /**
+         * Server stop.
+         *
+         * <p>Deliberately not {@code LabTickZones.setEnabled(false)}, which hands every pending
+         * tick back to the world's clock. That is right for zones being switched off for good and
+         * wrong for zones about to be loaded again, whose clock offset went to disk with them.
+         */
+        static void shutdownCore() {
+            io.papermc.paper.lab.zone.LabTickZones.shutdown();
+        }
+
+        static long resync(final String world, final String name) {
+            final io.papermc.paper.lab.zone.LabTickZone zone =
+                io.papermc.paper.lab.zone.LabTickZones.getZone(world, name);
+            return zone == null ? 0L : io.papermc.paper.lab.zone.LabTickZones.resync(zone);
+        }
+
+        static long clockOffset(final String world, final String name) {
+            return io.papermc.paper.lab.zone.LabTickZones.clockOffsetOf(world, name);
         }
 
         static void createZone(final String world, final String name, final UUID owner) {

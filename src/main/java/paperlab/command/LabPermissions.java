@@ -164,9 +164,9 @@ public final class LabPermissions {
         NODES.put(COUNTER_EDIT, "reset counters and put hoppers under tracking");
         NODES.put(GHOST, "observer mode for yourself");
         NODES.put(GHOST_OTHER, "observer mode for another player or bot");
-        NODES.put(TICK, "tick freeze, step and warp");
-        NODES.put(TICK_GLOBAL, "manage global tick rate and freeze without zone focus");
-        NODES.put(TICK_ZONE, "manage focused tick zones and zone commands");
+        NODES.put(TICK, "the Carpet-style additions to /tick: toggle, warp, dump");
+        NODES.put(TICK_GLOBAL, "drive the world's own clock: /tick rate, freeze, step, warp with no zone focused");
+        NODES.put(TICK_ZONE, "drive your zones: /zone, and /tick itself while a zone is focused");
         NODES.put(TICK_ZONE_ADMIN, "modify any zone, bypass zone ownership/membership");
         NODES.put(PLAYER, "bots: create, act, remove");
         NODES.put(CPLAY, "Capture & Playback mod integration and asset access");

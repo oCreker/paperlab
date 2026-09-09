@@ -22,6 +22,15 @@ public final class ZoneModel {
     private volatile boolean frozen = false;
     private volatile float tickRate = 20.0f;
 
+    /**
+     * How far this zone's clock stood from the world's when it was last written out.
+     *
+     * <p>Restored on load so the zone's pending block and fluid ticks still line up. They are
+     * saved as a delay from the world's game time, so their absolute value survives a restart
+     * intact - and it is the zone's clock they are absolute against.
+     */
+    private volatile long clockOffset = 0L;
+
     public ZoneModel(final String name, final String world, final UUID owner) {
         this.name = name;
         this.world = world;
@@ -94,5 +103,13 @@ public final class ZoneModel {
 
     public void setTickRate(final float tickRate) {
         this.tickRate = tickRate;
+    }
+
+    public long clockOffset() {
+        return this.clockOffset;
+    }
+
+    public void setClockOffset(final long clockOffset) {
+        this.clockOffset = clockOffset;
     }
 }
