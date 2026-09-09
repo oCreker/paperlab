@@ -2,6 +2,32 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.2.3 — 2026-09-09
+
+### Changed
+- **`maxTickRate` now bounds a sprint as well.** It was a ceiling on the rate you could *ask* for
+  and a sprint ignored it, which missed the point: a sprint is the one thing that takes a whole
+  core, because the tick loop sets its interval to zero and spins. The ceiling now puts a floor
+  under a sprinted tick, so `/tick warp`, `/tick sprint` and `/zone sprint` cannot outrun what the
+  server is allowed to do by any other route.
+
+  Measured here, an empty world, 400 ticks warped at each setting:
+
+  | ceiling | actual |
+  |---|---|
+  | 20 | 20.0/s |
+  | 40 | 40.0/s |
+  | 100 | 96/s |
+  | 200 | 129/s |
+  | 1000 | 129/s |
+  | 10000 (default) | 3976/s |
+
+  The ceiling is never exceeded, and below about a hundred a second it is hit exactly. Above that
+  the operating system decides: a park costs around 7.7 ms on this machine however little it is
+  asked for, so an interval shorter than that cannot be paced and the warp settles near 130
+  instead. Shorter still and no park happens at all - which is why the default leaves a warp
+  running flat out, as before.
+
 ## 1.2.2 — 2026-09-09
 
 ### Added
