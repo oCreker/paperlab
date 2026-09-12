@@ -2,6 +2,30 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.2.4 — 2026-09-12
+
+### Fixed
+- **A counter was invisible from another world.** There were sixteen counters *per world*, so one
+  filled in the nether could not be read from the overworld, and `/counter` listed every world's
+  counters while dividing all of them by whichever world the sender stood in. Two worlds' game
+  times are two different clocks, so those rates were arithmetic on unrelated numbers - and with
+  `perWorldTick` on, or a `/tick warp` that moved one world and not another, the answer was
+  nonsense rather than merely wrong. Now sixteen counters for the server, all measured against the
+  overworld's game time, exactly as Carpet does it.
+- **A skeleton farm filled the chat with bows.** The item key included the stack's metadata, so
+  every bow arrived with its own durability and got its own row - and the rows all rendered as a
+  plain "Bow", because the display never showed the metadata that had split them. A hundred
+  identical lines pushed the totals off the top of the screen. Keyed by the item now, as in
+  Carpet, which is the only thing a throughput counter can mean.
+
+### Added
+- `/counter <colour> realtime`, Carpet's: the same counter measured against the wall clock rather
+  than game time, which is what separates a slow farm from a slow server.
+
+### Kept, deliberately
+- `/log counter <colour>` still takes one subscription per colour and stacks them in the tab list.
+  Carpet has no such thing and a farm has more than one output.
+
 ## 1.2.3 — 2026-09-09
 
 ### Changed

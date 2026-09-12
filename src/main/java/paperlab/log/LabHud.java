@@ -265,13 +265,15 @@ public final class LabHud {
             return List.of();
         }
 
-        final LabCounter counter = LabCounters.existing(viewer.getWorld(), colour);
+        // Several colours at once is ours, not Carpet's: /log counter <colour> is a subscription
+        // per colour and they stack in the footer. A farm has more than one output.
+        final LabCounter counter = LabCounters.existing(colour);
         if (counter == null || !counter.started()) {
             return List.of(Component.text(colour.getName(), LabCounters.chatColour(colour))
                 .append(Component.text("  -", NamedTextColor.DARK_GRAY)));
         }
 
-        final long gameTime = viewer.getWorld().getGameTime();
+        final long gameTime = LabCounters.clock();
         final List<Component> out = new ArrayList<>();
         out.add(LabCounters.summary(counter, gameTime, false));
         if (full) {

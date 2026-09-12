@@ -46,16 +46,21 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class LabCounters {
 
-    private record Key(String world, DyeColor colour) {
-    }
-
     public record BlockPosKey(String worldName, int x, int y, int z) {
         public static BlockPosKey of(final Block block) {
             return new BlockPosKey(block.getWorld().getName(), block.getX(), block.getY(), block.getZ());
         }
     }
 
-    private static final Map<Key, LabCounter> COUNTERS = new java.util.concurrent.ConcurrentHashMap<>();
+    /**
+     * Sixteen counters for the whole server, as in Carpet - not sixteen per world.
+     *
+     * <p>Per-world counters meant a counter filled in the nether could not be read from the
+     * overworld, and {@code /counter} listed every world's counters while dividing them all by
+     * whichever world the sender happened to stand in. Two worlds' clocks are not the same clock,
+     * so those rates were arithmetic on unrelated numbers.
+     */
+    private static final Map<DyeColor, LabCounter> COUNTERS = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Tracked hoppers: location -> the colour of the wool it points into. */
     private static final Map<BlockPosKey, DyeColor> TRACKED = new java.util.concurrent.ConcurrentHashMap<>();
@@ -147,8 +152,8 @@ public final class LabCounters {
                 stale.add(posKey);
                 continue;
             }
-            final LabCounter counter = of(world, colour);
-            final long gameTime = world.getGameTime();
+            final LabCounter counter = of(colour);
+            final long gameTime = clock();
             final org.bukkit.inventory.Inventory inventory = hopper.getInventory();
             final ItemStack[] contents = inventory.getContents();
             for (int slot = 0; slot < contents.length; slot++) {
@@ -163,13 +168,24 @@ public final class LabCounters {
         stale.forEach(TRACKED::remove);
     }
 
-    public static LabCounter of(final World world, final DyeColor colour) {
-        return COUNTERS.computeIfAbsent(new Key(world.getName(), colour),
-            key -> new LabCounter(key.colour(), key.world()));
+    /**
+     * The clock every counter is measured against: the overworld's game time, as in Carpet.
+     *
+     * <p>One clock for all sixteen, because a counter is server-wide and a hopper feeding it can
+     * stand in any world. Bukkit's {@code getGameTime} is the level's own tick counter, so it is
+     * not the zone-aware one and a tick zone cannot skew it.
+     */
+    public static long clock() {
+        final java.util.List<World> worlds = Bukkit.getWorlds();
+        return worlds.isEmpty() ? 0L : worlds.get(0).getGameTime();
     }
 
-    public static @Nullable LabCounter existing(final World world, final DyeColor colour) {
-        return COUNTERS.get(new Key(world.getName(), colour));
+    public static LabCounter of(final DyeColor colour) {
+        return COUNTERS.computeIfAbsent(colour, LabCounter::new);
+    }
+
+    public static @Nullable LabCounter existing(final DyeColor colour) {
+        return COUNTERS.get(colour);
     }
 
     public static List<LabCounter> active() {
@@ -182,11 +198,21 @@ public final class LabCounters {
         return out;
     }
 
-    public static int resetAll(final long gameTime) {
+    /**
+     * Resets every counter.
+     *
+     * @param fresh stop the clocks too, so they restart on the next item rather than now - Carpet's
+     *              {@code resetAll(server, fresh)}
+     */
+    public static int resetAll(final long gameTime, final boolean fresh) {
         int count = 0;
         for (final LabCounter counter : COUNTERS.values()) {
             if (counter.started()) {
-                counter.reset(gameTime);
+                if (fresh) {
+                    counter.resetFresh();
+                } else {
+                    counter.reset(gameTime);
+                }
                 count++;
             }
         }
@@ -206,9 +232,9 @@ public final class LabCounters {
      * where they have to be told apart at a glance.
      */
     public static Component summary(final LabCounter counter, final long gameTime,
-                                    final boolean withWorld) {
-        final Double perHour = counter.perHour(gameTime);
-        final long ticks = Math.max(counter.elapsedTicks(gameTime), 1L);
+                                    final boolean realTime) {
+        final Double perHour = counter.perHour(gameTime, realTime);
+        final long ticks = Math.max(counter.elapsedTicks(gameTime, realTime), 1L);
         final double minutes = ticks / 1200.0D;
         final String name = hexStyle(counter.colour()) + " " + counter.colour().getName();
 
@@ -217,9 +243,6 @@ public final class LabCounters {
         }
         final java.util.List<Object> parts = new java.util.ArrayList<>();
         parts.add("b" + name);
-        if (withWorld) {
-            parts.add("g @" + counter.world());
-        }
         parts.add("w : ");
         parts.add("wb " + counter.total());
         parts.add("w , ");

@@ -45,7 +45,7 @@ public final class LabMiscCommands {
                 .then(Commands.literal("reset")
                     .requires(source -> source.getSender().hasPermission(LabPermissions.COUNTER_EDIT))
                     .executes(ctx -> {
-                    final int n = LabCounters.resetAll(worldOf(ctx.getSource()).getGameTime());
+                    final int n = LabCounters.resetAll(LabCounters.clock(), false);
                     ctx.getSource().getSender().sendMessage(
                         Component.text("reset: " + n, NamedTextColor.DARK_GRAY));
                     return n;
@@ -64,11 +64,16 @@ public final class LabMiscCommands {
                         return builder.buildFuture();
                     })
                     .executes(ctx -> showCounter(ctx.getSource(),
-                        StringArgumentType.getString(ctx, "color")))
+                        StringArgumentType.getString(ctx, "color"), false))
                     .then(Commands.literal("reset")
                         .requires(source -> source.getSender().hasPermission(LabPermissions.COUNTER_EDIT))
                         .executes(ctx -> resetCounter(ctx.getSource(),
-                            StringArgumentType.getString(ctx, "color")))))
+                            StringArgumentType.getString(ctx, "color"))))
+                    // Carpet's: the same counter measured against the wall clock, which is what
+                    // separates a slow farm from a slow server.
+                    .then(Commands.literal("realtime")
+                        .executes(ctx -> showCounter(ctx.getSource(),
+                            StringArgumentType.getString(ctx, "color"), true))))
         ;
     }
 
@@ -93,32 +98,34 @@ public final class LabMiscCommands {
                 NamedTextColor.DARK_GRAY));
             return 0;
         }
-        final long gameTime = worldOf(source).getGameTime();
+        final long gameTime = LabCounters.clock();
         for (final LabCounter counter : counters) {
-            source.getSender().sendMessage(LabCounters.summary(counter, gameTime, true));
+            source.getSender().sendMessage(LabCounters.summary(counter, gameTime, false));
         }
         return counters.size();
     }
 
-    private static int showCounter(final CommandSourceStack source, final String colourName) {
+    private static int showCounter(final CommandSourceStack source, final String colourName,
+                                   final boolean realTime) {
         final DyeColor colour = WoolColors.byName(colourName);
         if (colour == null) {
             source.getSender().sendMessage(Component.text("unknown colour", NamedTextColor.RED));
             return 0;
         }
-        final var world = worldOf(source);
-        final LabCounter counter = LabCounters.existing(world, colour);
+        final LabCounter counter = LabCounters.existing(colour);
         if (counter == null || !counter.started()) {
             source.getSender().sendMessage(Component.text(colour.getName() + " empty",
                 NamedTextColor.DARK_GRAY));
             return 0;
         }
         // Carpet's layout: a header with the total and rate, a reset button, then the items.
-        final long ticks = Math.max(counter.elapsedTicks(world.getGameTime()), 1L);
-        final Double perHour = counter.perHour(world.getGameTime());
+        final long gameTime = LabCounters.clock();
+        final long ticks = Math.max(counter.elapsedTicks(gameTime, realTime), 1L);
+        final Double perHour = counter.perHour(gameTime, realTime);
         source.getSender().sendMessage(paperlab.text.Msg.c(
             "w Items for ", LabCounters.hexStyle(colour) + " " + colour.getName(),
-            String.format(java.util.Locale.ROOT, "w  (%.2f min), ", ticks / 1200.0D),
+            String.format(java.util.Locale.ROOT, "w  (%.2f min%s), ", ticks / 1200.0D,
+                realTime ? " - real time" : ""),
             "w total: ", "wb " + counter.total(),
             "w , (", "wb " + (perHour == null ? "-"
                 : String.format(java.util.Locale.ROOT, "%.1f", perHour)), "w /h):",
@@ -139,8 +146,7 @@ public final class LabMiscCommands {
             source.getSender().sendMessage(Component.text("unknown colour", NamedTextColor.RED));
             return 0;
         }
-        final var world = worldOf(source);
-        LabCounters.of(world, colour).reset(world.getGameTime());
+        LabCounters.of(colour).reset(LabCounters.clock());
         source.getSender().sendMessage(Component.text(colour.getName() + " reset",
             NamedTextColor.DARK_GRAY));
         return 1;
@@ -352,10 +358,16 @@ public final class LabMiscCommands {
         return 1;
     }
 
+    /**
+     * The world the command is aimed at.
+     *
+     * <p>Taken from the source's location, not from the sender, so {@code execute in} works. It
+     * did not: from the console this always answered with the first world, and a spawn trace read
+     * that way silently reported the overworld while the farm being asked about was in the nether.
+     */
     private static org.bukkit.World worldOf(final CommandSourceStack source) {
-        if (source.getSender() instanceof final Player player) {
-            return player.getWorld();
-        }
-        return Bukkit.getWorlds().get(0);
+        final org.bukkit.Location location = source.getLocation();
+        final org.bukkit.World world = location == null ? null : location.getWorld();
+        return world != null ? world : Bukkit.getWorlds().get(0);
     }
 }
