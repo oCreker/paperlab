@@ -14,7 +14,7 @@ repositories {
 //
 // Why not the published paper-api: the tools need server internals -
 // ServerPlayer.mobCounts, ChunkMap.getMobCountNear, Moonrise's ChunkHolderManager.
-// paper-api does not expose those by design. Paper 26.2 runs on mojang mappings, so a
+// paper-api does not expose those by design. Paper 26.3 runs on mojang mappings, so a
 // plugin compiled against the server jar loads without remapping.
 //
 // The side effect: the plugin is tied to a specific server build. Acceptable for a lab,
@@ -23,11 +23,11 @@ val forkLibs = if (file("../paperlab-core").exists()) file("../paperlab-core") e
 
 dependencies {
     // The published paper-api, for the transitive adventure, brigadier, netty and annotations.
-    // Pinned rather than floating "26.2.build.+": build 92 is the one in the research archive
-    // and matches the era of our fork (commit 0a99345).
-    compileOnly("io.papermc.paper:paper-api:26.2.build.92-stable")
+    // Pinned rather than floating "26.3.build.+": build 231 is the one this fork was rebased onto
+    // and matches the era of our fork (Paper main, 174574d).
+    compileOnly("io.papermc.paper:paper-api:26.3.build.231-stable")
     // NMS comes from the local fork build: the published paper-api does not carry it.
-    compileOnly(files("$forkLibs/paper-server/build/libs/paper-server-26.2.local-SNAPSHOT.jar"))
+    compileOnly(files("$forkLibs/paper-server/build/libs/paper-server-26.3.local-SNAPSHOT.jar"))
 
     // Libraries absent from paper-api but needed to work with NMS: netty for protocol buffers,
     // DFU and jspecify for annotations in NMS class signatures.
@@ -38,14 +38,19 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation("io.papermc.paper:paper-api:26.2.build.92-stable")
-    testImplementation(files("$forkLibs/paper-server/build/libs/paper-server-26.2.local-SNAPSHOT.jar"))
+    testImplementation("io.papermc.paper:paper-api:26.3.build.231-stable")
+    testImplementation(files("$forkLibs/paper-server/build/libs/paper-server-26.3.local-SNAPSHOT.jar"))
     testImplementation("io.netty:netty-buffer:4.2.2.Final")
     testImplementation("io.netty:netty-codec:4.2.2.Final")
     testImplementation("com.mojang:datafixerupper:9.0.19")
     testImplementation("org.jspecify:jspecify:1.0.0")
-    testImplementation("ca.spottedleaf:concurrentutil:0.0.3")
-    testImplementation("ca.spottedleaf:leafpile:1.0.0")
+    // 26.3 moved these under the leafpile BOM; the old ca.spottedleaf coordinates carry an
+    // ioutil whose AbstractBufferOutputStream has no writeBuffer(), and the servux tests
+    // die with NoSuchMethodError on it.
+    testImplementation(platform("ca.spottedleaf.leafpile:bom:1.3.2"))
+    testImplementation("ca.spottedleaf.leafpile:common")
+    testImplementation("ca.spottedleaf.leafpile:concurrentutil")
+    testImplementation("ca.spottedleaf.leafpile:ioutil")
     testImplementation("com.mojang:authlib:7.0.63")
     testImplementation("it.unimi.dsi:fastutil:8.5.15")
     testImplementation("io.leangen.geantyref:geantyref:1.3.15")
