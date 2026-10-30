@@ -232,8 +232,15 @@ public final class ServuxWire {
     /**
      * Append network NBT to a buffer.
      */
+    /**
+     * Append an NBT body in the framing malilib reads: {@code int(length)} then a GZIP'd NBT
+     * stream. Shared with {@link #data}, because the entity and block-entity responses changed
+     * the same way the HUD data packets did - see the note there.
+     */
     public static void appendNbtBody(final FriendlyByteBuf buf, final CompoundTag tag) {
-        buf.writeNbt(tag);
+        final byte[] compressed = gzipNbt(tag);
+        buf.writeInt(compressed.length);
+        buf.writeBytes(compressed);
     }
 
     /** Build a metadata frame. */
@@ -245,15 +252,40 @@ public final class ServuxWire {
     }
 
     /**
-     * Build a Servux data frame: varint(type) + network NBT.
+     * Build a Servux data frame: varint(type) + int(length) + GZIP'd NBT stream.
      *
-     * <p>The MiniHUD client reads every packet type (SPAWN_DATA, WEATHER_TICK,
-     * DATA_LOGGER_TICK) through {@code FriendlyByteBuf.readNbt()}. Any length prefix or GZIP
-     * leaves unread bytes in the Netty buffer and gets the client kicked with a
-     * DecoderException.
+     * <p><b>This is not the same framing as {@link #metadata}, and it used to be.</b> MiniHUD up
+     * to 0.40.4 read every packet with {@code FriendlyByteBuf.readNbt()}, so a length prefix or
+     * GZIP left unread bytes and got the client kicked. From 0.40.7 the three data packets
+     * (SPAWN_DATA, WEATHER_TICK, DATA_LOGGER_TICK) go through malilib's
+     * {@code DataByteBufUtils.fromByteBuf}, which reads an {@code int} length, slices that many
+     * bytes and inflates them as a GZIP'd NBT stream. Metadata still uses the old way.
+     *
+     * <p>Sending the old framing to the new client is what produced
+     * {@code ServuxHudPacket#fromPacket: error reading Weather Tick} followed by the whole
+     * connection dying on "42 bytes extra": the mod's reader threw, left the rest of the payload
+     * in the buffer, and vanilla's decoder treats leftovers as a protocol error.
      */
     public static byte[] data(final int type, final CompoundTag tag) {
-        return metadata(type, tag);
+        final FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeVarInt(type);
+        appendNbtBody(buf, tag);
+        return drain(buf);
+    }
+
+    /**
+     * The NBT stream malilib expects: a GZIP'd {@code byte id, UTF name, payload}, which is what
+     * {@code NbtIo.write} produces and their {@code readFromNbtStream} consumes.
+     */
+    private static byte[] gzipNbt(final CompoundTag tag) {
+        final java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        try (java.io.DataOutputStream out =
+                 new java.io.DataOutputStream(new java.util.zip.GZIPOutputStream(bytes))) {
+            net.minecraft.nbt.NbtIo.write(tag, out);
+        } catch (final java.io.IOException e) {
+            throw new IllegalStateException("Failed to compress Servux NBT", e);
+        }
+        return bytes.toByteArray();
     }
 
     private static byte[] drain(final FriendlyByteBuf buf) {

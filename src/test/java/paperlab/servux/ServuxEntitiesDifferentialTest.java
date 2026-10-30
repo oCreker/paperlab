@@ -1,5 +1,7 @@
 package paperlab.servux;
 
+import fi.dy.masa.malilib.util.data.tag.CompoundData;
+import fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt;
 import fi.dy.masa.minihud.network.ServuxEntitiesPacket;
 import fi.dy.masa.minihud.network.ServuxStructuresPacket;
 import io.netty.buffer.Unpooled;
@@ -45,8 +47,8 @@ public class ServuxEntitiesDifferentialTest {
         assertNotNull(packet, "MiniHUD must parse the entity metadata packet successfully");
         assertEquals(ServuxEntitiesPacket.Type.PACKET_S2C_METADATA, packet.getType());
         assertFalse(buf.isReadable(), "the entity metadata buffer must be fully consumed");
-        assertEquals("entity_data", packet.getCompound().getStringOr("name", ""));
-        assertEquals(2, packet.getCompound().getIntOr("version", -1));
+        assertEquals("entity_data", packet.getCompound().getString("name"));
+        assertEquals(2, packet.getCompound().getInt("version"));
     }
 
     @Test
@@ -72,7 +74,7 @@ public class ServuxEntitiesDifferentialTest {
         assertNotNull(packet, "MiniHUD must parse the block entity response successfully");
         assertEquals(ServuxEntitiesPacket.Type.PACKET_S2C_BLOCK_NBT_RESPONSE_SIMPLE, packet.getType());
         assertEquals(pos, packet.getPos(), "the block coordinates must match exactly");
-        assertEquals(tag, packet.getCompound(), "the block entity NBT must match exactly");
+        assertEquals(tag, DataConverterNbt.toVanillaCompound(packet.getCompound()), "the block entity NBT must match exactly");
         assertFalse(clientBuf.isReadable(), "the response buffer must be fully consumed (zero spare bytes)");
     }
 
@@ -99,7 +101,7 @@ public class ServuxEntitiesDifferentialTest {
         assertNotNull(packet, "MiniHUD must parse the entity response successfully");
         assertEquals(ServuxEntitiesPacket.Type.PACKET_S2C_ENTITY_NBT_RESPONSE_SIMPLE, packet.getType());
         assertEquals(entityId, packet.getEntityId(), "the entity id must match");
-        assertEquals(tag, packet.getCompound(), "the entity NBT must match exactly");
+        assertEquals(tag, DataConverterNbt.toVanillaCompound(packet.getCompound()), "the entity NBT must match exactly");
         assertFalse(clientBuf.isReadable(), "the response buffer must be fully consumed (zero spare bytes)");
     }
 
@@ -108,7 +110,6 @@ public class ServuxEntitiesDifferentialTest {
     public void testClientBlockEntityRequestParsing() {
         final BlockPos targetPos = new BlockPos(-500, 12, 1024);
         final ServuxEntitiesPacket clientPacket = ServuxEntitiesPacket.BlockEntityRequest(targetPos);
-        clientPacket.setTransactionId(77);
 
         final FriendlyByteBuf clientOut = new FriendlyByteBuf(Unpooled.buffer());
         clientPacket.toPacket(clientOut);
@@ -122,10 +123,6 @@ public class ServuxEntitiesDifferentialTest {
         final int type = serverIn.readVarInt();
         assertEquals(C2S_BLOCK_ENTITY_REQUEST, type);
 
-        if (serverIn.readableBytes() > 8) {
-            final int txId = serverIn.readVarInt();
-            assertEquals(77, txId);
-        }
         final BlockPos parsedPos = serverIn.readBlockPos();
         assertEquals(targetPos, parsedPos);
         assertFalse(serverIn.isReadable(), "server-side parsing must consume every byte of the request");
@@ -136,7 +133,6 @@ public class ServuxEntitiesDifferentialTest {
     public void testClientEntityRequestParsing() {
         final int targetEntityId = 1337;
         final ServuxEntitiesPacket clientPacket = ServuxEntitiesPacket.EntityRequest(targetEntityId);
-        clientPacket.setTransactionId(99);
 
         final FriendlyByteBuf clientOut = new FriendlyByteBuf(Unpooled.buffer());
         clientPacket.toPacket(clientOut);
@@ -173,8 +169,8 @@ public class ServuxEntitiesDifferentialTest {
         assertNotNull(packet, "MiniHUD must parse the structure metadata successfully");
         assertEquals(ServuxStructuresPacket.Type.PACKET_S2C_METADATA, packet.getType());
         assertFalse(buf.isReadable(), "the structure metadata buffer must be fully consumed");
-        assertEquals("structure_bounding_boxes", packet.getCompound().getStringOr("name", ""));
-        assertEquals(300, packet.getCompound().getIntOr("timeout", 0));
+        assertEquals("structure_bounding_boxes", packet.getCompound().getString("name"));
+        assertEquals(300, packet.getCompound().getInt("timeout"));
     }
 
     @Test
@@ -206,7 +202,7 @@ public class ServuxEntitiesDifferentialTest {
                 final ServuxEntitiesPacket packet = ServuxEntitiesPacket.fromPacket(clientBuf);
                 assertNotNull(packet);
                 assertEquals(pos, packet.getPos());
-                assertEquals(tag, packet.getCompound());
+                assertEquals(tag, DataConverterNbt.toVanillaCompound(packet.getCompound()));
                 assertFalse(clientBuf.isReadable());
             } else {
                 final int entityId = rng.nextInt(Integer.MAX_VALUE);
@@ -223,7 +219,7 @@ public class ServuxEntitiesDifferentialTest {
                 final ServuxEntitiesPacket packet = ServuxEntitiesPacket.fromPacket(clientBuf);
                 assertNotNull(packet);
                 assertEquals(entityId, packet.getEntityId());
-                assertEquals(tag, packet.getCompound());
+                assertEquals(tag, DataConverterNbt.toVanillaCompound(packet.getCompound()));
                 assertFalse(clientBuf.isReadable());
             }
         }

@@ -2,6 +2,22 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.2.5 — 2026-10-30
+
+### Fixed
+- **Updating malilib and MiniHUD on the client made the server unjoinable.** From malilib 0.29.6
+  and MiniHUD 0.40.7 the servux data packets stopped being plain network NBT: they now carry an
+  `int` length and a GZIP'd NBT stream, read through malilib's `DataByteBufUtils.fromByteBuf`.
+  Metadata still uses the old framing. Sending the old one got the mod's reader to throw, leave
+  the rest of the payload in the buffer, and vanilla to kill the connection on
+  `found 42 bytes extra`. Both the HUD data packets (weather, spawn data, logger tick) and the
+  entity and block-entity responses are on the new framing now; they share one writer.
+- The differential tests run against the mod's own decoders again. They are the reason this is a
+  fix and not a guess: the entity and block-entity half of the break was found by them, not by
+  anyone noticing it in game. Ported to the 0.29.6 API - `getStringOr` and friends became
+  `getString`, `contains` became `containsLenient`, `getCompound` returns malilib's `CompoundData`
+  rather than a vanilla `CompoundTag`, and `setTransactionId` is gone from the protocol.
+
 ## 1.2.4 — 2026-09-12
 
 ### Fixed

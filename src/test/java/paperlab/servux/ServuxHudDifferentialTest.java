@@ -1,5 +1,7 @@
 package paperlab.servux;
 
+import fi.dy.masa.malilib.util.data.tag.CompoundData;
+import fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt;
 import fi.dy.masa.minihud.network.ServuxHudPacket;
 import io.netty.buffer.Unpooled;
 import java.io.IOException;
@@ -55,18 +57,18 @@ public class ServuxHudDifferentialTest {
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_METADATA, packet.getType());
         assertFalse(inBuf.isReadable(), "every byte of the packet must be consumed");
 
-        final CompoundTag data = packet.getCompound();
-        final int version = data.getIntOr("version", -1);
-        final String servux = data.getStringOr("servux", "?");
+        final CompoundData data = packet.getCompound();
+        final int version = data.getInt("version");
+        final String servux = data.getString("servux");
 
         assertEquals(3, version);
         assertTrue(servux.startsWith("servux-fabric-26.2"), "MiniHUD requires the 'servux-fabric-26.2' prefix");
-        assertEquals("hud_data", data.getStringOr("name", ""));
-        assertEquals("servux:hud_metadata", data.getStringOr("id", ""));
+        assertEquals("hud_data", data.getString("name"));
+        assertEquals("servux:hud_metadata", data.getString("id"));
 
-        final CompoundTag readLoggers = data.getCompoundOrEmpty("Loggers");
-        assertTrue(readLoggers.getBooleanOr("tps", false));
-        assertTrue(readLoggers.getBooleanOr("mob_caps", false));
+        final CompoundData readLoggers = data.getCompound("Loggers");
+        assertTrue(readLoggers.getBoolean("tps"));
+        assertTrue(readLoggers.getBoolean("mob_caps"));
     }
 
     @Test
@@ -86,17 +88,17 @@ public class ServuxHudDifferentialTest {
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_WEATHER_TICK, parsed.getType());
         assertFalse(inBuf.isReadable(), "critical: not one spare byte may remain in the Netty buffer");
 
-        final CompoundTag data = parsed.getCompound();
-        assertTrue(data.getBooleanOr("isRaining", false));
-        assertTrue(data.getBooleanOr("isThundering", false));
-        assertEquals(12500, data.getIntOr("SetRaining", -1));
-        assertEquals(6400, data.getIntOr("SetThundering", -1));
+        final CompoundData data = parsed.getCompound();
+        assertTrue(data.getBoolean("isRaining"));
+        assertTrue(data.getBoolean("isThundering"));
+        assertEquals(12500, data.getInt("SetRaining"));
+        assertEquals(6400, data.getInt("SetThundering"));
 
         // Emulating MiniHUD's HudDataManager.receiveWeatherData
-        boolean isRaining = data.getBooleanOr("isRaining", false);
-        boolean isThundering = data.getBooleanOr("isThundering", false);
-        int rainTime = data.getIntOr("SetRaining", -1);
-        int thunderTime = data.getIntOr("SetThundering", -1);
+        boolean isRaining = data.getBoolean("isRaining");
+        boolean isThundering = data.getBoolean("isThundering");
+        int rainTime = data.getInt("SetRaining");
+        int thunderTime = data.getInt("SetThundering");
 
         assertTrue(isRaining && isThundering);
         assertEquals(12500, rainTime);
@@ -126,13 +128,13 @@ public class ServuxHudDifferentialTest {
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_WEATHER_TICK, parsed.getType());
         assertFalse(input.isReadable(), "critical: zero extra bytes");
 
-        final CompoundTag data = parsed.getCompound();
+        final CompoundData data = parsed.getCompound();
         assertNotNull(data);
-        assertFalse(data.getBooleanOr("isRaining", true));
-        assertFalse(data.getBooleanOr("isThundering", true));
-        assertEquals(18500, data.getIntOr("SetClear", -1));
+        assertFalse(data.getBoolean("isRaining"));
+        assertFalse(data.getBoolean("isThundering"));
+        assertEquals(18500, data.getInt("SetClear"));
 
-        final int clearTimer = data.getIntOr("SetClear", -1);
+        final int clearTimer = data.getInt("SetClear");
         final boolean hasValidWeatherCycle = clearTimer >= 0;
         assertTrue(hasValidWeatherCycle, "MiniHUD must consider the weather cycle valid");
     }
@@ -145,7 +147,7 @@ public class ServuxHudDifferentialTest {
         originalData.putBoolean("isThundering", false);
         originalData.putInt("SetRaining", 6000);
 
-        final ServuxHudPacket packet = ServuxHudPacket.WeatherTick(originalData);
+        final ServuxHudPacket packet = ServuxHudPacket.WeatherTick(DataConverterNbt.fromVanillaCompound(originalData));
         final FriendlyByteBuf origBuf = new FriendlyByteBuf(Unpooled.buffer());
         packet.toPacket(origBuf);
 
@@ -204,18 +206,18 @@ public class ServuxHudDifferentialTest {
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_DATA_LOGGER_TICK, parsed.getType());
         assertFalse(input.isReadable(), "critical: zero extra bytes");
 
-        final CompoundTag compound = parsed.getCompound();
-        assertTrue(compound.contains("tps"));
-        assertTrue(compound.contains("mob_caps"));
+        final CompoundData compound = parsed.getCompound();
+        assertTrue(compound.containsLenient("tps"));
+        assertTrue(compound.containsLenient("mob_caps"));
 
-        final CompoundTag mobCapsData = compound.getCompoundOrEmpty("mob_caps");
-        assertTrue(mobCapsData.contains("minecraft:overworld"),
+        final CompoundData mobCapsData = compound.getCompound("mob_caps");
+        assertTrue(mobCapsData.containsLenient("minecraft:overworld"),
             "the original MiniHUD client looks up dimKey in mob_caps");
 
-        final CompoundTag owData = mobCapsData.getCompoundOrEmpty("minecraft:overworld");
-        assertEquals(45000L, owData.getLongOr("WorldTick", 0L));
-        assertEquals(8, owData.getIntOr("cap_count", 0));
-        assertTrue(owData.contains("cap_data"));
+        final CompoundData owData = mobCapsData.getCompound("minecraft:overworld");
+        assertEquals(45000L, owData.getLong("WorldTick"));
+        assertEquals(8, owData.getInt("cap_count"));
+        assertTrue(owData.containsLenient("cap_data"));
     }
 
     @Test
@@ -236,11 +238,11 @@ public class ServuxHudDifferentialTest {
         assertEquals(ServuxHudPacket.Type.PACKET_S2C_SPAWN_DATA, parsed.getType());
         assertFalse(input.isReadable(), "critical: zero extra bytes");
 
-        final CompoundTag compound = parsed.getCompound();
-        assertEquals("minecraft:overworld", compound.getStringOr("spawnDimension", ""));
-        assertEquals(100, compound.getIntOr("spawnPosX", 0));
-        assertEquals(64, compound.getIntOr("spawnPosY", 0));
-        assertEquals(-200, compound.getIntOr("spawnPosZ", 0));
+        final CompoundData compound = parsed.getCompound();
+        assertEquals("minecraft:overworld", compound.getString("spawnDimension"));
+        assertEquals(100, compound.getInt("spawnPosX"));
+        assertEquals(64, compound.getInt("spawnPosY"));
+        assertEquals(-200, compound.getInt("spawnPosZ"));
     }
 
     // --- 5. Weather differential fuzz (10,000 iterations) ---
@@ -271,12 +273,12 @@ public class ServuxHudDifferentialTest {
             assertEquals(ServuxHudPacket.Type.PACKET_S2C_WEATHER_TICK, parsed.getType());
             assertFalse(inBuf.isReadable());
 
-            final CompoundTag cd = parsed.getCompound();
-            assertEquals(raining, cd.getBooleanOr("isRaining", !raining));
-            assertEquals(thundering, cd.getBooleanOr("isThundering", !thundering));
-            assertEquals(clearTimer, cd.getIntOr("SetClear", -1));
-            assertEquals(rainTimer, cd.getIntOr("SetRaining", -1));
-            assertEquals(thunderTimer, cd.getIntOr("SetThundering", -1));
+            final CompoundData cd = parsed.getCompound();
+            assertEquals(raining, cd.getBoolean("isRaining"));
+            assertEquals(thundering, cd.getBoolean("isThundering"));
+            assertEquals(clearTimer, cd.getInt("SetClear"));
+            assertEquals(rainTimer, cd.getInt("SetRaining"));
+            assertEquals(thunderTimer, cd.getInt("SetThundering"));
 
             // Mod -> PaperLab
             final CompoundTag origCd = new CompoundTag();
@@ -286,7 +288,7 @@ public class ServuxHudDifferentialTest {
             origCd.putInt("SetRaining", rainTimer);
             origCd.putInt("SetThundering", thunderTimer);
 
-            final ServuxHudPacket origPacket = ServuxHudPacket.WeatherTick(origCd);
+            final ServuxHudPacket origPacket = ServuxHudPacket.WeatherTick(DataConverterNbt.fromVanillaCompound(origCd));
             final FriendlyByteBuf origBuf = new FriendlyByteBuf(Unpooled.buffer());
             origPacket.toPacket(origBuf);
             final byte[] origBytes = new byte[origBuf.readableBytes()];
@@ -354,15 +356,15 @@ public class ServuxHudDifferentialTest {
             assertEquals(ServuxHudPacket.Type.PACKET_S2C_DATA_LOGGER_TICK, parsed.getType());
             assertFalse(inBuf.isReadable());
 
-            final CompoundTag cd = parsed.getCompound();
-            final CompoundTag tpsCd = cd.getCompoundOrEmpty("tps");
-            assertEquals(mspt, tpsCd.getDoubleOr("mspt", 0.0), 0.001);
-            assertEquals(tpsVal, tpsCd.getDoubleOr("tps", 0.0), 0.001);
+            final CompoundData cd = parsed.getCompound();
+            final CompoundData tpsCd = cd.getCompound("tps");
+            assertEquals(mspt, tpsCd.getDouble("mspt"), 0.001);
+            assertEquals(tpsVal, tpsCd.getDouble("tps"), 0.001);
 
-            final CompoundTag mobCapsCd = cd.getCompoundOrEmpty("mob_caps");
-            final CompoundTag dimCd = mobCapsCd.getCompoundOrEmpty(selectedDim);
-            assertEquals(worldTick, dimCd.getLongOr("WorldTick", -1L));
-            assertEquals(MobCategory.values().length, dimCd.getIntOr("cap_count", 0));
+            final CompoundData mobCapsCd = cd.getCompound("mob_caps");
+            final CompoundData dimCd = mobCapsCd.getCompound(selectedDim);
+            assertEquals(worldTick, dimCd.getLong("WorldTick"));
+            assertEquals(MobCategory.values().length, dimCd.getInt("cap_count"));
         }
     }
 
@@ -393,11 +395,11 @@ public class ServuxHudDifferentialTest {
             assertEquals(ServuxHudPacket.Type.PACKET_S2C_SPAWN_DATA, parsed.getType());
             assertFalse(inBuf.isReadable());
 
-            final CompoundTag cd = parsed.getCompound();
-            assertEquals(dim, cd.getStringOr("spawnDimension", ""));
-            assertEquals(x, cd.getIntOr("spawnPosX", 0));
-            assertEquals(y, cd.getIntOr("spawnPosY", 0));
-            assertEquals(z, cd.getIntOr("spawnPosZ", 0));
+            final CompoundData cd = parsed.getCompound();
+            assertEquals(dim, cd.getString("spawnDimension"));
+            assertEquals(x, cd.getInt("spawnPosX"));
+            assertEquals(y, cd.getInt("spawnPosY"));
+            assertEquals(z, cd.getInt("spawnPosZ"));
         }
     }
 
