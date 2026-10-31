@@ -4,6 +4,24 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).
 
+## 1.3.0 — 2026-10-31
+
+### Изменено
+- **Сборка под Paper 26.3.** Код плагина не правился вообще: все внутренности сервера, за которые
+  он цепляется — `ServerPlayer.mobCounts`, `ChunkMap.getMobCountNear`, держатели чанков Moonrise,
+  `net.minecraft.resources.Identifier` — смену версии пережили. Поменялась сборка: `paper-api` и
+  jar форка, `api-version` в `paper-plugin.yml`, и библиотеки Spottedleaf, которые в 26.3
+  publish'атся под BOM `ca.spottedleaf.leafpile`. Старые координаты `ca.spottedleaf` затеняли
+  серверный `ioutil`, и восемнадцать тестов servux падали с
+  `NoSuchMethodError: AbstractBufferOutputStream.writeBuffer()`.
+- Номер версии поднят по одной практической причине: сборка под 26.3 и сборка под 26.2 не должны
+  называться одинаково на стенде.
+
+### Чего тесты не проверяют
+- Дифференциальные тесты по-прежнему сверяют формат с модами под **26.2** — под 26.3 ни malilib,
+  ни MiniHUD, ни g4mespeed ещё не вышли. Зелёный прогон говорит, что кодировщик не сломался, а не
+  что он говорит на 26.3.
+
 ## 1.2.5 — 2026-10-30
 
 ### Исправлено

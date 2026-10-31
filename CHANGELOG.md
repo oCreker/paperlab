@@ -2,6 +2,24 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.3.0 — 2026-10-31
+
+### Changed
+- **Built for Paper 26.3.** The plugin's own code needed no change: every server internal it
+  reaches for - `ServerPlayer.mobCounts`, `ChunkMap.getMobCountNear`, Moonrise's chunk holders,
+  `net.minecraft.resources.Identifier` - survived the version bump. What moved is the build:
+  `paper-api` and the fork jar, `api-version` in `paper-plugin.yml`, and the Spottedleaf
+  libraries, which 26.3 publishes under the `ca.spottedleaf.leafpile` BOM. The old
+  `ca.spottedleaf` coordinates shadowed the server's own `ioutil` and took eighteen servux tests
+  down with `NoSuchMethodError: AbstractBufferOutputStream.writeBuffer()`.
+- The jar carries a new version number for one practical reason: a 26.3 build and a 26.2 build
+  must not share a filename on the bench.
+
+### Known limits
+- The differential tests still check the wire format against **26.2** client mods, because no
+  26.3 builds of malilib, MiniHUD or g4mespeed exist yet. A green run says the encoder did not
+  regress, not that it speaks 26.3.
+
 ## 1.2.5 — 2026-10-30
 
 ### Fixed
