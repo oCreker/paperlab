@@ -247,17 +247,25 @@ public final class ServuxStructures implements PluginMessageListener {
     }
 
     /**
-     * The body for the splitter — network NBT.
+     * The body for the splitter — {@code int(length)} then a GZIP'd stream of named NBT.
      *
-     * <p>Servux writes "length + GZIP" here, but the client reads with a malilib codec, and
-     * that, as the HUD channel showed, works in network NBT. We will not follow Servux a second
-     * time: that is exactly what dropped the connection last time.
+     * <p>This channel used to send network NBT, because that is what MiniHUD 0.40.x read here
+     * while its HUD channel had already moved on. From MiniHUD 0.41.2 (malilib 0.30.2) the
+     * reassembled buffer goes through {@code DataByteBufUtils.fromByteBuf} like everything else:
+     * {@code readInt}, {@code readSlice}, {@code GZIPInputStream},
+     * {@code DataFileUtils.readFromNbtStream}. So the whole protocol is on one framing at last,
+     * and this is {@link ServuxWire#appendNbtBody}.
+     *
+     * <p>The symptom of getting it wrong is quiet: boxes simply never appear, and the client
+     * log reads {@code error reading fullBuffer [readerIndex(4) + length(168361994) exceeds
+     * writerIndex]} — the first four bytes of network NBT (<code>0a 09 00 0a</code>, a compound
+     * holding a list named "Structures") read as a length.
      */
-    private static byte[] encode(final CompoundTag tag) throws IOException {
+    static byte[] encode(final CompoundTag tag) throws IOException {
         final io.netty.buffer.ByteBuf buffer = io.netty.buffer.Unpooled.buffer();
         final net.minecraft.network.FriendlyByteBuf buf =
             new net.minecraft.network.FriendlyByteBuf(buffer);
-        buf.writeNbt(tag);
+        ServuxWire.appendNbtBody(buf, tag);
         final byte[] out = new byte[buf.readableBytes()];
         buf.readBytes(out);
         buf.release();
