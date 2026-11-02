@@ -2,6 +2,33 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.3.1 — 2026-11-02
+
+### Fixed
+- **Structure bounding boxes never appeared in MiniHUD 0.41.2.** The `servux:structures` body
+  was still network NBT. That was right for MiniHUD 0.40.x, which read this one channel with a
+  plain `readNbt` while its HUD channel had already moved on; from 0.41.2 (malilib 0.30.2) the
+  reassembled buffer goes through `DataByteBufUtils.fromByteBuf` like everything else —
+  `readInt`, `readSlice`, GZIP, named NBT. The whole protocol is on one framing now, and so are
+  we.
+- The failure is silent by design of the client: no disconnect, no message in game, just
+  `error reading fullBuffer [readerIndex(4) + length(168361994) ...]` in the client log once
+  every ten seconds. 168361994 is `0a 09 00 0a` — the first four bytes of a compound holding a
+  list named "Structures" — read as a length.
+
+### Added
+- A differential test for `servux:structures`, run against malilib's own reader. This channel
+  was the only one without one, which is why it was the one that broke.
+
+### Changed
+- The differential tests now run against the **26.3** client mods: malilib 0.30.2,
+  MiniHUD 0.41.2, Tweakeroo 0.30.1 and Litematica 0.29.1. They replace the 26.2 jars in
+  `libs/`; g4mespeed has no 26.3 build yet, so the capture-and-playback tests still check the
+  old protocol and prove nothing about 26.3.
+- `servux:tweaks` and `servux:litematics` got differential tests too, so every Servux channel
+  now has one. Both channels turned out to be correct; the point is that nothing said so
+  before. 119 tests.
+
 ## 1.3.0 — 2026-10-31
 
 ### Changed
